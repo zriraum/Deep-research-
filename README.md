@@ -138,6 +138,14 @@ This repo contains 5 tutorial notebooks that build a deep research system from s
 
 ---
 
+#### 6. Evals
+
+---
+
+#### 7. Deployment
+
+---
+
 ### 🎯 Key Learning Outcomes
 
 - **Structured Output**: Using Pydantic schemas for reliable AI decision making
