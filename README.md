@@ -2,7 +2,7 @@
 
 Deep research has broken out as one the most popular agent applications. [OpenAI](https://openai.com/index/introducing-deep-research/), [Anthropic](https://www.anthropic.com/engineering/built-multi-agent-research-system), [Perplexity](https://www.perplexity.ai/hub/blog/introducing-perplexity-deep-research), and [Google](https://gemini.google/overview/deep-research/?hl=en) all have deep research products that can search the web or [work context](https://www.anthropic.com/news/research) to perform research on user-defined topics. There are also many [open](https://huggingface.co/blog/open-deep-research) [source](https://github.com/google-gemini/gemini-fullstack-langgraph-quickstart) implementations, including [ours](https://github.com/langchain-ai/open_deep_research). We built an open deep researcher that is simple and configurable, working across many model providers, search tools, and MCP servers. In this repo, we'll build a deep researcher from scratch! Here is a map of the major pieces that we will build:
 
-
+![overview](https://github.com/user-attachments/assets/b71727bd-0094-40c4-af5e-87cdb02123b4)
 
 ## 🚀 Quickstart 
 
