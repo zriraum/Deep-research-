@@ -7,10 +7,12 @@ Deep research has broken out as one the most popular agent applications. [OpenAI
 ## 🚀 Quickstart 
 
 ### Prerequisites
+
 - Python 3.9 or higher
 - [uv](https://docs.astral.sh/uv/) package manager
 
 ### Installation
+
 1. Clone the repository and activate a virtual environment:
 ```bash
 git clone https://github.com/langchain-ai/deep_research_from_scratch
@@ -19,9 +21,9 @@ uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-2. Install dependencies:
+2. Install the package and dependencies:
 ```bash
-uv pip install -r requirements.txt
+uv pip install -e .
 ```
 
 ## Background 
