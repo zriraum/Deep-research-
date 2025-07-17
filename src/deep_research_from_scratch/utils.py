@@ -1,4 +1,11 @@
 
+"""
+Research Utilities and Tools
+
+This module provides search and content processing utilities for the research agent,
+including async web search capabilities and content summarization tools.
+"""
+
 import asyncio
 from datetime import datetime
 from typing import Annotated, List, Literal
@@ -13,9 +20,13 @@ from tavily import AsyncTavilyClient
 from deep_research_from_scratch.state import Summary
 from deep_research_from_scratch.prompts import summarize_webpage_prompt
 
+# ===== UTILITY FUNCTIONS =====
+
 def get_today_str() -> str:
     """Get current date in a human-readable format."""
     return datetime.now().strftime("%a %b %-d, %Y")
+
+# ===== ASYNC SEARCH FUNCTIONS =====
 
 async def tavily_search_async(
     search_queries: List[str], 
@@ -38,6 +49,8 @@ async def tavily_search_async(
         List of search result dictionaries
     """
     tavily_async_client = AsyncTavilyClient()
+
+    # Create concurrent search tasks
     search_tasks = []
     for query in search_queries:
         search_tasks.append(
@@ -48,8 +61,12 @@ async def tavily_search_async(
                 topic=topic
             )
         )
+
+    # Execute all searches concurrently
     search_docs = await asyncio.gather(*search_tasks)
     return search_docs
+
+# ===== CONTENT PROCESSING =====
 
 async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
     """
@@ -63,6 +80,7 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
         Formatted summary with key excerpts
     """
     try:
+        # Use timeout to prevent hanging on slow responses
         summary = await asyncio.wait_for(
             model.ainvoke([HumanMessage(content=summarize_webpage_prompt.format(
                 webpage_content=webpage_content, 
@@ -74,6 +92,8 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
     except (asyncio.TimeoutError, Exception) as e:
         print(f"Failed to summarize webpage: {str(e)}")
         return webpage_content
+
+# ===== RESEARCH TOOLS =====
 
 TAVILY_SEARCH_DESCRIPTION = (
     "A search engine optimized for comprehensive, accurate, and trusted results. "
@@ -99,6 +119,7 @@ async def tavily_search(
     Returns:
         Formatted string of search results with summaries
     """
+    # Execute searches concurrently
     search_results = await tavily_search_async(
         queries,
         max_results=max_results,
@@ -107,21 +128,24 @@ async def tavily_search(
         config=config
     )
 
-    # Format the search results and deduplicate results by URL
+    # Deduplicate results by URL to avoid processing the same content multiple times
     formatted_output = f"Search results: \n\n"
     unique_results = {}
+
     for response in search_results:
         for result in response['results']:
             url = result['url']
             if url not in unique_results:
                 unique_results[url] = {**result, "query": response['query']}
 
-    # Summarize the results using a lightweight model
+    # Set up summarization model for content processing
     summarization_model = init_chat_model("openai:gpt-4.1-mini").with_structured_output(Summary)
 
     async def noop():
+        """No-op function for results without raw content."""
         return None
 
+    # Create summarization tasks (only for pages with raw content)
     summarization_tasks = [
         noop() if not result.get("raw_content") else summarize_webpage(
             summarization_model, 
@@ -130,7 +154,10 @@ async def tavily_search(
         for result in unique_results.values()
     ]
 
+    # Execute all summarization tasks concurrently
     summaries = await asyncio.gather(*summarization_tasks)
+
+    # Create final results with summaries
     summarized_results = {
         url: {
             'title': result['title'], 
@@ -139,7 +166,7 @@ async def tavily_search(
         for url, result, summary in zip(unique_results.keys(), unique_results.values(), summaries)
     }
 
-    # Format output with sources
+    # Format output with clear source separation
     for i, (url, result) in enumerate(summarized_results.items()):
         formatted_output += f"\n\n--- SOURCE {i+1}: {result['title']} ---\n"
         formatted_output += f"URL: {url}\n\n"

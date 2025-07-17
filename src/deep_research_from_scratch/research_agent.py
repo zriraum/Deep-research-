@@ -1,47 +1,71 @@
 
+"""
+Research Agent Implementation
+
+This module implements a research agent that can perform iterative web searches
+and synthesis to answer complex research questions. The agent uses async operations
+for concurrent search execution and includes tools for web search and content processing.
+"""
+
 import asyncio
 import nest_asyncio
+from typing_extensions import Literal
+
 from langgraph.graph import MessagesState, StateGraph, START, END
 from langchain_core.messages import SystemMessage, ToolMessage, HumanMessage
-from typing_extensions import Literal
 from langchain.chat_models import init_chat_model
 from IPython.display import Image, display
 
-# Enable nested event loops for Jupyter
-nest_asyncio.apply()
-
-# Import our custom tool and utilities
 from deep_research_from_scratch.utils import tavily_search
 from deep_research_from_scratch.prompts import research_agent_prompt
 
-# Using our custom @tool decorator with raw Tavily API
-# This gives us more control over search results and content processing
+# ===== CONFIGURATION =====
+
+# Enable nested event loops for Jupyter notebook compatibility
+nest_asyncio.apply()
+
+# Set up tools and model binding
 tools = [tavily_search]
 tools_by_name = {tool.name: tool for tool in tools}
 
-# Initialize model
+# Initialize model with tool binding
 model = init_chat_model(model="openai:gpt-4.1")
 model_with_tools = model.bind_tools(tools)
 
-# Nodes
+# ===== AGENT NODES =====
+
 def llm_call(state: MessagesState):
-    """LLM decides whether to call a tool or not"""
+    """
+    LLM decision node.
+
+    The model analyzes the current conversation state and decides whether to:
+    1. Call search tools to gather more information
+    2. Provide a final answer based on gathered information
+
+    Returns updated state with the model's response.
+    """
     return {
         "messages": [
             model_with_tools.invoke(
-                [
-                    SystemMessage(content=research_agent_prompt)
-                ]
-                + state["messages"]
+                [SystemMessage(content=research_agent_prompt)] + state["messages"]
             )
         ]
     }
 
 def tool_node(state: dict):
-    """Performs the tool call - handles async tools concurrently in Jupyter"""
+    """
+    Tool execution node.
+
+    Executes all tool calls from the previous LLM response concurrently.
+    This is where the async benefits become apparent - multiple search queries
+    can be executed simultaneously rather than sequentially.
+
+    Returns updated state with tool execution results.
+    """
     tool_calls = state["messages"][-1].tool_calls
 
     async def execute_tools():
+        """Execute all tool calls concurrently for better performance."""
         # Create coroutines for all tool calls
         coros = []
         for tool_call in tool_calls:
@@ -66,21 +90,34 @@ def tool_node(state: dict):
     messages = asyncio.run(execute_tools())
     return {"messages": messages}
 
-# Conditional edge function to route to the tool node or end based upon whether the LLM made a tool call
+# ===== ROUTING LOGIC =====
+
 def should_continue(state: MessagesState) -> Literal["environment", "__end__"]:
-    """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
+    """
+    Conditional routing function.
+
+    Determines whether the agent should continue the research loop or provide
+    a final answer based on whether the LLM made tool calls.
+
+    Returns:
+        "environment": Continue to tool execution
+        "__end__": Stop and return final answer
+    """
     messages = state["messages"]
     last_message = messages[-1]
-    # If the LLM makes a tool call, then perform an action
+
+    # If the LLM makes a tool call, continue to tool execution
     if last_message.tool_calls:
         return "environment"
-    # Otherwise, we stop (reply to the user)
+    # Otherwise, we have a final answer
     return "__end__"
 
-# Build workflow
+# ===== GRAPH CONSTRUCTION =====
+
+# Build the agent workflow
 agent_builder = StateGraph(MessagesState)
 
-# Add nodes
+# Add nodes to the graph
 agent_builder.add_node("llm_call", llm_call)
 agent_builder.add_node("environment", tool_node)
 
@@ -90,12 +127,11 @@ agent_builder.add_conditional_edges(
     "llm_call",
     should_continue,
     {
-        # Name returned by should_continue : Name of next node to visit
-        "environment": "environment",
-        "__end__": END,
+        "environment": "environment",  # Continue research loop
+        "__end__": END,               # Provide final answer
     },
 )
-agent_builder.add_edge("environment", "llm_call")
+agent_builder.add_edge("environment", "llm_call")  # Loop back for more research
 
 # Compile the agent
 agent = agent_builder.compile()
