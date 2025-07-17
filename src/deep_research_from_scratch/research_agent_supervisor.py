@@ -1,13 +1,14 @@
 
-"""Multi-agent supervisor for coordinating research across multiple specialized agents.
+"""
+Multi-Agent Research Supervisor System
 
-This module implements a supervisor pattern where:
-1. A supervisor agent coordinates research activities and delegates tasks
-2. Multiple researcher agents work on specific sub-topics independently
-3. Results are aggregated and compressed for final reporting
+This module implements a multi-agent research system where a supervisor coordinates
+multiple research agents to conduct parallel research on different topics.
 
-The supervisor uses parallel research execution to improve efficiency while
-maintaining isolated context windows for each research topic.
+Architecture:
+- Supervisor: Decides what research to conduct and when to complete
+- Researcher Subgraph: Individual research agents that perform tool calls
+- State Management: Tracks conversation history and research progress
 """
 
 import asyncio
@@ -21,76 +22,68 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 
 from deep_research_from_scratch.utils import tavily_search
-from deep_research_from_scratch.prompts import research_agent_prompt, compress_research_system_prompt, lead_researcher_prompt
+from deep_research_from_scratch.prompts import research_agent_prompt, compress_research_system_prompt
 from deep_research_from_scratch.multi_agent_supervisor_state import SupervisorState, ResearcherState, ResearcherOutputState, ConductResearch, ResearchComplete
 
 # ===== UTILITY FUNCTIONS =====
 
+def get_notes_from_tool_calls(messages: list[MessageLikeRepresentation]) -> list[str]:
+    """Extract content from tool messages in the conversation history."""
+    return [tool_msg.content for tool_msg in filter_messages(messages, include_types="tool")]
+
 def get_today_str() -> str:
     """Get current date in a human-readable format."""
     return datetime.now().strftime("%a %b %-d, %Y")
-
-def get_notes_from_tool_calls(messages: list[MessageLikeRepresentation]) -> list[str]:
-    """Extract notes from tool call messages."""
-    return [tool_msg.content for tool_msg in filter_messages(messages, include_types="tool")]
 
 # ===== CONFIGURATION =====
 
 # Enable nested event loops for Jupyter
 nest_asyncio.apply()
 
-# Initialize models and tools
+# Initialize researcher model and tools
 researcher_tools = [tavily_search]
 researcher_tools_by_name = {tool.name: tool for tool in researcher_tools}
 researcher_model = init_chat_model(model="openai:gpt-4.1")
 researcher_model_with_tools = researcher_model.bind_tools(researcher_tools)
 
+# Initialize supervisor model and tools
 supervisor_tools = [ConductResearch, ResearchComplete]
 supervisor_model = init_chat_model(model="openai:gpt-4.1")
 supervisor_model_with_tools = supervisor_model.bind_tools(supervisor_tools)
 
 # System constants
-# Maximum number of tool call iterations for individual researcher agents
-# This prevents infinite loops and controls research depth per topic
 max_researcher_iterations = 3
-
-# Maximum number of concurrent research agents the supervisor can launch
-# This is passed to the lead_researcher_prompt to limit parallel research tasks
-max_concurrent_researchers = 3
 
 # ===== RESEARCHER NODES =====
 
-# Researcher nodes
-def researcher_llm_call(state: ResearcherState) -> Command[Literal["researcher_tool_node"]]:
+def researcher_llm_call(state: ResearcherState):
     """
-    Researcher agent makes decisions about what tools to call.
+    Researcher LLM decision node.
 
-    This node processes the current conversation and decides what research
-    actions to take next, such as web searches or data analysis.
+    The researcher decides whether to call tools based on the current conversation state.
+    Similar to the pattern used in research_agent.ipynb.
     """
-    messages = [SystemMessage(content=research_agent_prompt)] + state["researcher_messages"]
-    result = researcher_model_with_tools.invoke(messages)
-
-    return Command(
-        goto="researcher_tool_node",
-        update={
-            "researcher_messages": [result],
-            "tool_call_iterations": state.get("tool_call_iterations", 0) + 1
-        }
+    result = researcher_model_with_tools.invoke(
+        [SystemMessage(content=research_agent_prompt)] + state["researcher_messages"]
     )
 
-def researcher_tool_node(state: ResearcherState) -> Command[Literal["compress_research", "researcher_llm_call"]]:
-    """
-    Executes tool calls made by the researcher agent.
+    # Update state directly (no Command object)
+    return {
+        "researcher_messages": [result],
+        "tool_call_iterations": state.get("tool_call_iterations", 0) + 1
+    }
 
-    Handles async tool execution concurrently for better performance.
-    Decides whether to continue research or compress findings based on
-    iteration limits and completion signals.
+def researcher_tool_node(state: ResearcherState):
+    """
+    Researcher tool execution node.
+
+    Executes tool calls concurrently and updates state with results.
+    Similar to the pattern used in research_agent.ipynb.
     """
     tool_calls = state["researcher_messages"][-1].tool_calls
 
     async def execute_tools():
-        # Create coroutines for all tool calls
+        """Execute all tool calls concurrently for better performance."""
         coros = []
         for tool_call in tool_calls:
             tool = researcher_tools_by_name[tool_call["name"]]
@@ -113,71 +106,69 @@ def researcher_tool_node(state: ResearcherState) -> Command[Literal["compress_re
     # Run async function in sync context with nested event loop support
     tool_outputs = asyncio.run(execute_tools())
 
-    # Check if research should be compressed
+    # Update state directly (no Command object)
+    return {"researcher_messages": tool_outputs}
+
+def researcher_should_continue(state: ResearcherState) -> Literal["researcher_tool_node", "compress_research"]:
+    """
+    Conditional routing function for researcher.
+
+    Determines whether to continue research or proceed to compression
+    based on iteration limits and tool calls.
+    """
+    messages = state["researcher_messages"]
+    last_message = messages[-1]
+
+    # Check if we should compress research
     should_compress = (
         state.get("tool_call_iterations", 0) >= max_researcher_iterations or 
-        any(tool_call["name"] == "ResearchComplete" for tool_call in tool_calls)
+        not last_message.tool_calls
     )
 
     if should_compress:
-        return Command(
-            goto="compress_research",
-            update={"researcher_messages": tool_outputs}
-        )
+        return "compress_research"
 
-    return Command(
-        goto="researcher_llm_call",
-        update={"researcher_messages": tool_outputs}
-    )
+    # Continue research if tools were called
+    if last_message.tool_calls:
+        return "researcher_tool_node"
 
-async def compress_research(state: ResearcherState) -> dict:
+    return "compress_research"
+
+async def compress_research(state: ResearcherState):
     """
-    Compresses research findings into a concise summary.
+    Research compression node.
 
-    Takes all the research messages and tool outputs and creates
-    a compressed summary suitable for the supervisor's decision-making.
+    Summarizes and compresses the research findings into a concise report
+    while preserving all raw notes for reference.
     """
-    system_message = compress_research_system_prompt.format(date=get_today_str())
-    messages = [SystemMessage(content=system_message)] + state.get("researcher_messages", [])
-
-    response = await researcher_model.ainvoke(messages)
-
-    # Extract raw notes from tool and AI messages
-    raw_notes = [
-        str(m.content) for m in filter_messages(
-            state["researcher_messages"], 
-            include_types=["tool", "ai"]
-        )
-    ]
+    response = await researcher_model.ainvoke([
+        SystemMessage(content=compress_research_system_prompt.format(date=get_today_str())),
+        *state.get("researcher_messages", [])
+    ])
 
     return {
         "compressed_research": str(response.content),
-        "raw_notes": ["\n".join(raw_notes)]
+        "raw_notes": ["\n".join([
+            str(m.content) for m in filter_messages(
+                state["researcher_messages"], 
+                include_types=["tool", "ai"]
+            )
+        ])]
     }
 
-# ===== SCOPING WORKFLOW NODES =====
+# ===== SUPERVISOR NODES =====
 
-# Supervisor nodes
 async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tools"]]:
     """
-    Supervisor agent that coordinates research activities.
+    Supervisor decision node.
 
-    Analyzes the research brief and current progress to decide:
-    - What research topics need investigation
-    - Whether to conduct parallel research
-    - When research is complete
+    The supervisor coordinates research activities by deciding what research
+    to conduct and when the research process is complete.
     """
     supervisor_messages = state.get("supervisor_messages", [])
 
-    # Prepare system message with current date and constraints
-    system_message = lead_researcher_prompt.format(
-        date=get_today_str(), 
-        max_concurrent_research_units=max_concurrent_researchers
-    )
-    messages = [SystemMessage(content=system_message)] + supervisor_messages
-
     # Make decision about next research steps
-    response = await supervisor_model_with_tools.ainvoke(messages)
+    response = await supervisor_model_with_tools.ainvoke(supervisor_messages)
 
     return Command(
         goto="supervisor_tools",
@@ -189,26 +180,24 @@ async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tool
 
 async def supervisor_tools(state: SupervisorState) -> Command[Literal["supervisor", "__end__"]]:
     """
-    Executes supervisor decisions - either conducts research or ends the process.
+    Supervisor tool execution node.
 
-    Handles:
-    - Launching parallel research agents for different topics
-    - Aggregating research results
-    - Determining when research is complete
+    Executes supervisor decisions by either launching research sub-agents
+    or terminating the research process based on completion criteria.
     """
     supervisor_messages = state.get("supervisor_messages", [])
     research_iterations = state.get("research_iterations", 0)
     most_recent_message = supervisor_messages[-1]
 
     # Check exit criteria
-    exceeded_iterations = research_iterations >= max_researcher_iterations
+    exceeded_allowed_iterations = research_iterations >= max_researcher_iterations
     no_tool_calls = not most_recent_message.tool_calls
-    research_complete = any(
+    research_complete_tool_call = any(
         tool_call["name"] == "ResearchComplete" 
         for tool_call in most_recent_message.tool_calls
     )
 
-    if exceeded_iterations or no_tool_calls or research_complete:
+    if exceeded_allowed_iterations or no_tool_calls or research_complete_tool_call:
         return Command(
             goto=END,
             update={
@@ -217,14 +206,14 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
             }
         )
 
-    # Conduct research using sub-agents
+    # Launch parallel research sub-agents
     try:
         conduct_research_calls = [
             tool_call for tool_call in most_recent_message.tool_calls 
             if tool_call["name"] == "ConductResearch"
         ]
 
-        # Launch parallel research agents
+        # Create concurrent research tasks
         coros = [
             researcher_subgraph.ainvoke({
                 "researcher_messages": [
@@ -238,26 +227,23 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
         # Wait for all research to complete
         tool_results = await asyncio.gather(*coros)
 
-        # Format results as tool messages
+        # Format results as tool messages for supervisor
         tool_messages = [
             ToolMessage(
-                content=result.get("compressed_research", "Error synthesizing research report"),
+                content=observation.get("compressed_research", "Error synthesizing research report"),
                 name=tool_call["name"],
                 tool_call_id=tool_call["id"]
-            ) for result, tool_call in zip(tool_results, conduct_research_calls)
-        ]
-
-        # Aggregate raw notes from all research
-        all_raw_notes = [
-            "\n".join(result.get("raw_notes", [])) 
-            for result in tool_results
+            ) for observation, tool_call in zip(tool_results, conduct_research_calls)
         ]
 
         return Command(
             goto="supervisor",
             update={
                 "supervisor_messages": tool_messages,
-                "raw_notes": all_raw_notes
+                "raw_notes": ["\n".join([
+                    "\n".join(observation.get("raw_notes", [])) 
+                    for observation in tool_results
+                ])]
             }
         )
 
@@ -271,18 +257,41 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
             }
         )
 
-# Build researcher subgraph
+# ===== GRAPH CONSTRUCTION =====
+
+# Build researcher subgraph (similar to research_agent.ipynb pattern)
 researcher_subgraph = StateGraph(ResearcherState, output_schema=ResearcherOutputState)
+
+# Add researcher nodes
 researcher_subgraph.add_node("researcher_llm_call", researcher_llm_call)
 researcher_subgraph.add_node("researcher_tool_node", researcher_tool_node)
 researcher_subgraph.add_node("compress_research", compress_research)
+
+# Add researcher edges (following research_agent.ipynb pattern)
 researcher_subgraph.add_edge(START, "researcher_llm_call")
+researcher_subgraph.add_conditional_edges(
+    "researcher_llm_call",
+    researcher_should_continue,
+    {
+        "researcher_tool_node": "researcher_tool_node",
+        "compress_research": "compress_research",
+    },
+)
+researcher_subgraph.add_edge("researcher_tool_node", "researcher_llm_call")  # Loop back
 researcher_subgraph.add_edge("compress_research", END)
+
+# Compile researcher subgraph
 researcher_subgraph = researcher_subgraph.compile()
 
-# Build supervisor graph
+# Build supervisor subgraph
 supervisor_builder = StateGraph(SupervisorState)
+
+# Add supervisor nodes
 supervisor_builder.add_node("supervisor", supervisor)
 supervisor_builder.add_node("supervisor_tools", supervisor_tools)
+
+# Add supervisor edges
 supervisor_builder.add_edge(START, "supervisor")
+
+# Compile main agent
 agent = supervisor_builder.compile()

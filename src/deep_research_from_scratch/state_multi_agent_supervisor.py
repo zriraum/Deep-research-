@@ -1,4 +1,6 @@
 
+# TODO: Add comment and improve formatting, but don't modify the code 
+
 import operator
 from typing import Annotated, TypedDict
 
