@@ -56,31 +56,29 @@ max_researcher_iterations = 3
 
 # ===== RESEARCHER NODES =====
 
-def researcher_llm_call(state: ResearcherState) -> Command[Literal["researcher_tool_node"]]:
+def researcher_llm_call(state: ResearcherState):
     """
     Researcher LLM decision node.
 
     The researcher decides whether to call tools based on the current conversation state.
-    Always proceeds to tool execution to maintain the research flow.
+    Similar to the pattern used in research_agent.ipynb.
     """
     result = researcher_model_with_tools.invoke(
         [SystemMessage(content=research_agent_prompt)] + state["researcher_messages"]
     )
 
-    return Command(
-        goto="researcher_tool_node",
-        update={
-            "researcher_messages": [result],
-            "tool_call_iterations": state.get("tool_call_iterations", 0) + 1
-        }
-    )
+    # Update state directly (no Command object)
+    return {
+        "researcher_messages": [result],
+        "tool_call_iterations": state.get("tool_call_iterations", 0) + 1
+    }
 
-def researcher_tool_node(state: ResearcherState) -> Command[Literal["compress_research", "researcher_llm_call"]]:
+def researcher_tool_node(state: ResearcherState):
     """
     Researcher tool execution node.
 
-    Executes tool calls concurrently and decides whether to continue research
-    or proceed to compression based on iteration limits.
+    Executes tool calls concurrently and updates state with results.
+    Similar to the pattern used in research_agent.ipynb.
     """
     tool_calls = state["researcher_messages"][-1].tool_calls
 
@@ -108,22 +106,33 @@ def researcher_tool_node(state: ResearcherState) -> Command[Literal["compress_re
     # Run async function in sync context with nested event loop support
     tool_outputs = asyncio.run(execute_tools())
 
-    # Determine next step: compress if max iterations reached or continue research
+    # Update state directly (no Command object)
+    return {"researcher_messages": tool_outputs}
+
+def researcher_should_continue(state: ResearcherState) -> Literal["researcher_tool_node", "compress_research"]:
+    """
+    Conditional routing function for researcher.
+
+    Determines whether to continue research or proceed to compression
+    based on iteration limits and tool calls.
+    """
+    messages = state["researcher_messages"]
+    last_message = messages[-1]
+
+    # Check if we should compress research
     should_compress = (
         state.get("tool_call_iterations", 0) >= max_researcher_iterations or 
-        any(tool_call["name"] == "ResearchComplete" for tool_call in tool_calls)
+        not last_message.tool_calls
     )
 
     if should_compress:
-        return Command(
-            goto="compress_research",
-            update={"researcher_messages": tool_outputs}
-        )
+        return "compress_research"
 
-    return Command(
-        goto="researcher_llm_call",
-        update={"researcher_messages": tool_outputs}
-    )
+    # Continue research if tools were called
+    if last_message.tool_calls:
+        return "researcher_tool_node"
+
+    return "compress_research"
 
 async def compress_research(state: ResearcherState):
     """
@@ -250,7 +259,7 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
 
 # ===== GRAPH CONSTRUCTION =====
 
-# Build researcher subgraph
+# Build researcher subgraph (similar to research_agent.ipynb pattern)
 researcher_subgraph = StateGraph(ResearcherState, output_schema=ResearcherOutputState)
 
 # Add researcher nodes
@@ -258,8 +267,17 @@ researcher_subgraph.add_node("researcher_llm_call", researcher_llm_call)
 researcher_subgraph.add_node("researcher_tool_node", researcher_tool_node)
 researcher_subgraph.add_node("compress_research", compress_research)
 
-# Add researcher edges
+# Add researcher edges (following research_agent.ipynb pattern)
 researcher_subgraph.add_edge(START, "researcher_llm_call")
+researcher_subgraph.add_conditional_edges(
+    "researcher_llm_call",
+    researcher_should_continue,
+    {
+        "researcher_tool_node": "researcher_tool_node",
+        "compress_research": "compress_research",
+    },
+)
+researcher_subgraph.add_edge("researcher_tool_node", "researcher_llm_call")  # Loop back
 researcher_subgraph.add_edge("compress_research", END)
 
 # Compile researcher subgraph
