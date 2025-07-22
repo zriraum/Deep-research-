@@ -3,19 +3,17 @@
 Research Utilities and Tools
 
 This module provides search and content processing utilities for the research agent,
-including async web search capabilities and content summarization tools.
+including web search capabilities and content summarization tools.
 """
 
-import asyncio
 from datetime import datetime
 from typing import Annotated, List, Literal
 
 from langchain.chat_models import init_chat_model 
-from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool, InjectedToolArg
-from tavily import AsyncTavilyClient
+from tavily import TavilyClient
 
 from deep_research_from_scratch.state import Summary
 from deep_research_from_scratch.prompts import summarize_webpage_prompt
@@ -26,17 +24,20 @@ def get_today_str() -> str:
     """Get current date in a human-readable format."""
     return datetime.now().strftime("%a %b %-d, %Y")
 
-# ===== ASYNC SEARCH FUNCTIONS =====
+# ===== CONFIGURATION =====
 
-async def tavily_search_async(
+summarization_model = init_chat_model(model="openai:gpt-4.1-mini")
+
+# ===== SEARCH FUNCTIONS =====
+
+def tavily_search_multiple(
     search_queries: List[str], 
-    max_results: int = 5, 
+    max_results: int = 3, 
     topic: Literal["general", "news", "finance"] = "general", 
     include_raw_content: bool = True, 
-    config: RunnableConfig = None
 ) -> List[dict]:
     """
-    Perform asynchronous search using Tavily API for multiple queries.
+    Perform search using Tavily API for multiple queries.
 
     Args:
         search_queries: List of search queries to execute
@@ -48,88 +49,66 @@ async def tavily_search_async(
     Returns:
         List of search result dictionaries
     """
-    tavily_async_client = AsyncTavilyClient()
 
-    # Create concurrent search tasks
-    search_tasks = []
+    tavily_client = TavilyClient()
+
+    # Execute searches sequentially
+    search_docs = []
     for query in search_queries:
-        search_tasks.append(
-            tavily_async_client.search(
-                query,
-                max_results=max_results,
-                include_raw_content=include_raw_content,
-                topic=topic
-            )
+        result = tavily_client.search(
+            query,
+            max_results=max_results,
+            include_raw_content=include_raw_content,
+            topic=topic
         )
+        search_docs.append(result)
 
-    # Execute all searches concurrently
-    search_docs = await asyncio.gather(*search_tasks)
     return search_docs
 
-# ===== CONTENT PROCESSING =====
-
-async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
+def summarize_webpage_content(webpage_content: str) -> str:
     """
-    Summarize webpage content using a language model.
+    Summarize webpage content using the configured summarization model.
 
     Args:
-        model: Language model for summarization
         webpage_content: Raw webpage content to summarize
 
     Returns:
         Formatted summary with key excerpts
     """
     try:
-        # Use timeout to prevent hanging on slow responses
-        summary = await asyncio.wait_for(
-            model.ainvoke([HumanMessage(content=summarize_webpage_prompt.format(
+        # Set up structured output model for summarization
+        structured_model = summarization_model.with_structured_output(Summary)
+
+        # Generate summary
+        summary = structured_model.invoke([
+            HumanMessage(content=summarize_webpage_prompt.format(
                 webpage_content=webpage_content, 
                 date=get_today_str()
-            ))]),
-            timeout=60.0
+            ))
+        ])
+
+        # Format summary with clear structure
+        formatted_summary = (
+            f"<summary>\n{summary.summary}\n</summary>\n\n"
+            f"<key_excerpts>\n{summary.key_excerpts}\n</key_excerpts>"
         )
-        return f"""<summary>\n{summary.summary}\n</summary>\n\n<key_excerpts>\n{summary.key_excerpts}\n</key_excerpts>"""
-    except (asyncio.TimeoutError, Exception) as e:
+
+        return formatted_summary
+
+    except Exception as e:
         print(f"Failed to summarize webpage: {str(e)}")
-        return webpage_content
+        return webpage_content[:1000] + "..." if len(webpage_content) > 1000 else webpage_content
 
-# ===== RESEARCH TOOLS =====
-
-TAVILY_SEARCH_DESCRIPTION = (
-    "A search engine optimized for comprehensive, accurate, and trusted results. "
-    "Useful for when you need to answer questions about current events."
-)
-
-@tool(description=TAVILY_SEARCH_DESCRIPTION)
-async def tavily_search(
-    queries: List[str],
-    max_results: Annotated[int, InjectedToolArg] = 5,
-    topic: Annotated[Literal["general", "news", "finance"], InjectedToolArg] = "general",
-    config: RunnableConfig = None
-) -> str:
+def deduplicate_search_results(search_results: List[dict]) -> dict:
     """
-    Fetches results from Tavily search API with content summarization.
+    Deduplicate search results by URL to avoid processing duplicate content.
 
     Args:
-        queries: List of search queries, you can pass in as many queries as you need
-        max_results: Maximum number of results to return
-        topic: Topic to filter results by ('general', 'news', 'finance')
-        config: Runtime configuration
+        search_results: List of search result dictionaries
 
     Returns:
-        Formatted string of search results with summaries
+        Dictionary mapping URLs to unique results with query metadata
     """
-    # Execute searches concurrently
-    search_results = await tavily_search_async(
-        queries,
-        max_results=max_results,
-        topic=topic,
-        include_raw_content=True,
-        config=config
-    )
-
-    # Deduplicate results by URL to avoid processing the same content multiple times
-    formatted_output = f"Search results: \n\n"
     unique_results = {}
 
     for response in search_results:
@@ -138,42 +117,92 @@ async def tavily_search(
             if url not in unique_results:
                 unique_results[url] = {**result, "query": response['query']}
 
-    # Set up summarization model for content processing
-    summarization_model = init_chat_model("openai:gpt-4.1-mini").with_structured_output(Summary)
+    return unique_results
 
-    async def noop():
-        """No-op function for results without raw content."""
-        return None
+def process_search_results(unique_results: dict) -> dict:
+    """
+    Process search results by summarizing content where available.
 
-    # Create summarization tasks (only for pages with raw content)
-    summarization_tasks = [
-        noop() if not result.get("raw_content") else summarize_webpage(
-            summarization_model, 
-            result['raw_content'],
-        )
-        for result in unique_results.values()
-    ]
+    Args:
+        unique_results: Dictionary of unique search results
 
-    # Execute all summarization tasks concurrently
-    summaries = await asyncio.gather(*summarization_tasks)
+    Returns:
+        Dictionary of processed results with summaries
+    """
+    summarized_results = {}
 
-    # Create final results with summaries
-    summarized_results = {
-        url: {
-            'title': result['title'], 
-            'content': result['content'] if summary is None else summary
+    for url, result in unique_results.items():
+        # Use existing content if no raw content for summarization
+        if not result.get("raw_content"):
+            content = result['content']
+        else:
+            # Summarize raw content for better processing
+            content = summarize_webpage_content(result['raw_content'])
+
+        summarized_results[url] = {
+            'title': result['title'],
+            'content': content
         }
-        for url, result, summary in zip(unique_results.keys(), unique_results.values(), summaries)
-    }
 
-    # Format output with clear source separation
-    for i, (url, result) in enumerate(summarized_results.items()):
-        formatted_output += f"\n\n--- SOURCE {i+1}: {result['title']} ---\n"
+    return summarized_results
+
+def format_search_output(summarized_results: dict) -> str:
+    """
+    Format search results into a well-structured string output.
+
+    Args:
+        summarized_results: Dictionary of processed search results
+
+    Returns:
+        Formatted string of search results with clear source separation
+    """
+    if not summarized_results:
+        return "No valid search results found. Please try different search queries or use a different search API."
+
+    formatted_output = "Search results: \n\n"
+
+    for i, (url, result) in enumerate(summarized_results.items(), 1):
+        formatted_output += f"\n\n--- SOURCE {i}: {result['title']} ---\n"
         formatted_output += f"URL: {url}\n\n"
         formatted_output += f"SUMMARY:\n{result['content']}\n\n"
-        formatted_output += "\n\n" + "-" * 80 + "\n"
+        formatted_output += "-" * 80 + "\n"
 
-    if summarized_results:
-        return formatted_output
-    else:
-        return "No valid search results found. Please try different search queries or use a different search API."
+    return formatted_output
+
+# ===== RESEARCH TOOLS =====
+
+@tool(description="Web search utility")
+def tavily_search(
+    query: str,
+    max_results: Annotated[int, InjectedToolArg] = 3,
+    topic: Annotated[Literal["general", "news", "finance"], InjectedToolArg] = "general",
+    config: RunnableConfig = None
+) -> str:
+    """
+    Fetches results from Tavily search API with content summarization.
+
+    Args:
+        query: A single search query to execute
+        max_results: Maximum number of results to return
+        topic: Topic to filter results by ('general', 'news', 'finance')
+        config: Runtime configuration
+
+    Returns:
+        Formatted string of search results with summaries
+    """
+    # Execute search for single query
+    search_results = tavily_search_multiple(
+        [query],  # Convert single query to list for the internal function
+        max_results=max_results,
+        topic=topic,
+        include_raw_content=True,
+    )
+
+    # Deduplicate results by URL to avoid processing duplicate content
+    unique_results = deduplicate_search_results(search_results)
+
+    # Process results with summarization
+    summarized_results = process_search_results(unique_results)
+
+    # Format output for consumption
+    return format_search_output(summarized_results)

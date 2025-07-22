@@ -17,10 +17,9 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, AIMessage, get_buffer_string
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
-from langgraph.graph import MessagesState
 
 from deep_research_from_scratch.prompts import clarify_with_user_instructions, transform_messages_into_research_topic_prompt
-from deep_research_from_scratch.state import AgentState, ClarifyWithUser, ResearchQuestion
+from deep_research_from_scratch.state_scope import AgentState, ClarifyWithUser, ResearchQuestion, AgentInputState
 
 # ===== UTILITY FUNCTIONS =====
 
@@ -31,7 +30,8 @@ def get_today_str() -> str:
 # ===== CONFIGURATION =====
 
 # Initialize model
-model = init_chat_model(model="openai:gpt-4.1")
+model = init_chat_model(model="anthropic:claude-sonnet-4-20250514", temperature=0.0)
+model = init_chat_model(model="openai:gpt-4.1", temperature=0.0)
 
 # ===== WORKFLOW NODES =====
 
@@ -97,7 +97,7 @@ def write_research_brief(state: AgentState):
 # ===== GRAPH CONSTRUCTION =====
 
 # Build the scoping workflow
-deep_researcher_builder = StateGraph(AgentState, input_schema=MessagesState)
+deep_researcher_builder = StateGraph(AgentState, input_schema=AgentInputState)
 
 # Add workflow nodes
 deep_researcher_builder.add_node("clarify_with_user", clarify_with_user)
