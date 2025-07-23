@@ -57,7 +57,7 @@ except ImportError:
 # ===== CONFIGURATION =====
 
 supervisor_tools = [ConductResearch, ResearchComplete]
-supervisor_model = init_chat_model(model="openai:gpt-4.1")
+supervisor_model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
 supervisor_model_with_tools = supervisor_model.bind_tools(supervisor_tools)
 
 # System constants
@@ -68,7 +68,6 @@ max_researcher_iterations = 3
 # Maximum number of concurrent research agents the supervisor can launch
 # This is passed to the lead_researcher_prompt to limit parallel research tasks
 max_concurrent_researchers = 3
-
 
 # ===== SUPERVISOR NODES =====
 
