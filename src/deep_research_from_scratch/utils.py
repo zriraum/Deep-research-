@@ -15,7 +15,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool, InjectedToolArg
 from tavily import TavilyClient
 
-from deep_research_from_scratch.state import Summary
+from deep_research_from_scratch.state_research import Summary
 from deep_research_from_scratch.prompts import summarize_webpage_prompt
 
 # ===== UTILITY FUNCTIONS =====
@@ -44,7 +44,6 @@ def tavily_search_multiple(
         max_results: Maximum number of results per query
         topic: Topic filter for search results
         include_raw_content: Whether to include raw webpage content
-        config: Runtime configuration
 
     Returns:
         List of search result dictionaries
@@ -176,7 +175,6 @@ def tavily_search(
     query: str,
     max_results: Annotated[int, InjectedToolArg] = 3,
     topic: Annotated[Literal["general", "news", "finance"], InjectedToolArg] = "general",
-    config: RunnableConfig = None
 ) -> str:
     """
     Fetches results from Tavily search API with content summarization.
@@ -185,7 +183,6 @@ def tavily_search(
         query: A single search query to execute
         max_results: Maximum number of results to return
         topic: Topic to filter results by ('general', 'news', 'finance')
-        config: Runtime configuration
 
     Returns:
         Formatted string of search results with summaries

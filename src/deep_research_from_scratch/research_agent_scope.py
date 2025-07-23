@@ -30,7 +30,6 @@ def get_today_str() -> str:
 # ===== CONFIGURATION =====
 
 # Initialize model
-model = init_chat_model(model="anthropic:claude-sonnet-4-20250514", temperature=0.0)
 model = init_chat_model(model="openai:gpt-4.1", temperature=0.0)
 
 # ===== WORKFLOW NODES =====
@@ -89,9 +88,10 @@ def write_research_brief(state: AgentState):
         ))
     ])
 
-    # Update state with generated research brief
+    # Update state with generated research brief and pass it to the supervisor
     return {
         "research_brief": response.research_brief,
+        "supervisor_messages": [HumanMessage(content=f"{response.research_brief}.")]
     }
 
 # ===== GRAPH CONSTRUCTION =====
