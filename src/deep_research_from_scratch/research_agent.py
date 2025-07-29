@@ -23,7 +23,7 @@ tools = [tavily_search]
 tools_by_name = {tool.name: tool for tool in tools}
 
 # Initialize model with tool binding
-model = init_chat_model(model="openai:gpt-4.1")
+model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
 model_with_tools = model.bind_tools(tools)
 summarization_model = init_chat_model(model="openai:gpt-4.1-mini")
 
@@ -83,7 +83,7 @@ def compress_research(state: ResearcherState) -> dict:
     system_message = compress_research_system_prompt.format(date=get_today_str())
     messages = [SystemMessage(content=system_message)] + state.get("researcher_messages", [])
 
-    response = summarization_model.invoke(messages)
+    response = model.invoke(messages)
 
     # Extract raw notes from tool and AI messages
     raw_notes = [
