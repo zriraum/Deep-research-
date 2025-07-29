@@ -9,12 +9,12 @@ and synthesis to answer complex research questions.
 from typing_extensions import Literal
 
 from langgraph.graph import StateGraph, START, END
-from langchain_core.messages import SystemMessage, ToolMessage, filter_messages
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, filter_messages
 from langchain.chat_models import init_chat_model
 
 from deep_research_from_scratch.state_research import ResearcherState, ResearcherOutputState
 from deep_research_from_scratch.utils import tavily_search, get_today_str
-from deep_research_from_scratch.prompts import research_agent_prompt, compress_research_system_prompt
+from deep_research_from_scratch.prompts import research_agent_prompt, compress_research_system_prompt, compress_research_human_message
 
 # ===== CONFIGURATION =====
 
@@ -22,10 +22,12 @@ from deep_research_from_scratch.prompts import research_agent_prompt, compress_r
 tools = [tavily_search]
 tools_by_name = {tool.name: tool for tool in tools}
 
-# Initialize model with tool binding
+# Initialize models
 model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
 model_with_tools = model.bind_tools(tools)
 summarization_model = init_chat_model(model="openai:gpt-4.1-mini")
+# compress_model = init_chat_model(model="anthropic:claude-sonnet-4-20250514", max_tokens=64000)
+compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000)
 
 # ===== AGENT NODES =====
 
@@ -81,9 +83,9 @@ def compress_research(state: ResearcherState) -> dict:
     a compressed summary suitable for the supervisor's decision-making.
     """
     system_message = compress_research_system_prompt.format(date=get_today_str())
-    messages = [SystemMessage(content=system_message)] + state.get("researcher_messages", [])
+    messages = [SystemMessage(content=system_message)] + state.get("researcher_messages", []) + [HumanMessage(content=compress_research_human_message)]
 
-    response = model.invoke(messages)
+    response = compress_model.invoke(messages)
 
     # Extract raw notes from tool and AI messages
     raw_notes = [

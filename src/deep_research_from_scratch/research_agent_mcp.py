@@ -22,7 +22,6 @@ try:
     import nest_asyncio
     # Only apply if running in Jupyter/IPython environment
     try:
-        # TODO: We may need to import this?
         get_ipython()
         nest_asyncio.apply()
     except NameError:
