@@ -29,10 +29,12 @@ try:
 except ImportError:
     pass  # nest_asyncio not available, proceed without it
 
-from langgraph.graph import MessagesState, StateGraph, START, END
+from langgraph.graph import StateGraph, START, END
 from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.chat_models import init_chat_model
+from deep_research_from_scratch.state_research import ResearcherState
+from deep_research_from_scratch.utils import think_tool
 from deep_research_from_scratch.prompts import research_agent_prompt_with_mcp
 
 # ===== CONFIGURATION =====
@@ -57,7 +59,7 @@ client = MultiServerMCPClient(mcp_config)
 
 # ===== AGENT NODES =====
 
-async def llm_call(state: MessagesState):
+async def llm_call(state: ResearcherState):
     """
     LLM decision node with MCP tool integration.
 
@@ -72,7 +74,7 @@ async def llm_call(state: MessagesState):
     mcp_tools = await client.get_tools()
 
     # Use MCP tools for local document access
-    tools = mcp_tools
+    tools = mcp_tools + [think_tool]
 
     # Initialize model with tool binding
     model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
@@ -80,14 +82,14 @@ async def llm_call(state: MessagesState):
 
     # Process user input with system prompt
     return {
-        "messages": [
+        "researcher_messages": [
             model_with_tools.invoke(
-                [SystemMessage(content=research_agent_prompt_with_mcp)] + state["messages"]
+                [SystemMessage(content=research_agent_prompt_with_mcp)] + state["researcher_messages"]
             )
         ]
     }
 
-def tool_node(state: dict):
+def tool_node(state: ResearcherState):
     """
     Tool execution node for MCP tools.
 
@@ -99,13 +101,14 @@ def tool_node(state: dict):
     Note: MCP requires async operations due to inter-process communication
     with the MCP server subprocess. This is unavoidable.
     """
-    tool_calls = state["messages"][-1].tool_calls
+    tool_calls = state["researcher_messages"][-1].tool_calls
 
     async def execute_tools():
         """Execute all tool calls. MCP tools require async execution."""
         # Get fresh tool references from MCP server
         mcp_tools = await client.get_tools()
-        tools_by_name = {tool.name: tool for tool in mcp_tools}
+        tools = mcp_tools + [think_tool]
+        tools_by_name = {tool.name: tool for tool in tools}
 
         # Execute tool calls (sequentially for reliability)
         observations = []
@@ -142,18 +145,18 @@ def tool_node(state: dict):
         # No event loop, create new one
         messages = asyncio.run(execute_tools())
 
-    return {"messages": messages}
+    return {"researcher_messages": messages}
 
 # ===== ROUTING LOGIC =====
 
-def should_continue(state: MessagesState) -> Literal["tool_node", "__end__"]:
+def should_continue(state: ResearcherState) -> Literal["tool_node", "__end__"]:
     """
     Conditional routing function.
 
     Determines whether to continue with tool execution or provide final answer
     based on whether the LLM made tool calls.
     """
-    messages = state["messages"]
+    messages = state["researcher_messages"]
     last_message = messages[-1]
 
     # Continue to tool execution if tools were called
@@ -165,7 +168,7 @@ def should_continue(state: MessagesState) -> Literal["tool_node", "__end__"]:
 # ===== GRAPH CONSTRUCTION =====
 
 # Build the agent workflow
-agent_builder_mcp = StateGraph(MessagesState)
+agent_builder_mcp = StateGraph(ResearcherState)
 
 # Add nodes to the graph
 agent_builder_mcp.add_node("llm_call", llm_call)
