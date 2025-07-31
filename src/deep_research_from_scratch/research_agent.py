@@ -26,8 +26,7 @@ tools_by_name = {tool.name: tool for tool in tools}
 model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
 model_with_tools = model.bind_tools(tools)
 summarization_model = init_chat_model(model="openai:gpt-4.1-mini")
-# compress_model = init_chat_model(model="anthropic:claude-sonnet-4-20250514", max_tokens=64000)
-compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000)
+compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000) # model="anthropic:claude-sonnet-4-20250514", max_tokens=64000
 
 # ===== AGENT NODES =====
 
