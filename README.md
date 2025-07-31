@@ -8,7 +8,11 @@ Deep research has broken out as one of the most popular agent applications. [Ope
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Ensure you're using Python 3.11 or later.
+- This version is required for optimal compatibility with LangGraph.
+```bash
+python3 --version
+```
 - [uv](https://docs.astral.sh/uv/) package manager
 
 ### Installation
