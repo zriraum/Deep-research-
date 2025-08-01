@@ -32,8 +32,8 @@ from deep_research_from_scratch.state_multi_agent_supervisor import (
     ConductResearch, 
     ResearchComplete
 )
+from deep_research_from_scratch.utils import think_tool
 from deep_research_from_scratch.utils import get_today_str
-
 
 def get_notes_from_tool_calls(messages: list[MessageLikeRepresentation]) -> list[str]:
     """Extract notes from tool call messages."""
@@ -56,7 +56,7 @@ except ImportError:
 
 # ===== CONFIGURATION =====
 
-supervisor_tools = [ConductResearch, ResearchComplete]
+supervisor_tools = [ConductResearch, ResearchComplete, think_tool]
 supervisor_model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
 supervisor_model_with_tools = supervisor_model.bind_tools(supervisor_tools)
 
@@ -112,6 +112,7 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
     Executes supervisor decisions - either conducts research or ends the process.
 
     Handles:
+    - Executing think_tool calls for strategic reflection
     - Launching parallel research agents for different topics
     - Aggregating research results
     - Determining when research is complete
@@ -143,41 +144,65 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
             }
         )
 
-    # Conduct research using sub-agents
+    # Execute tool calls
     try:
+        tool_messages = []
+        all_raw_notes = []
+
+        # Separate think_tool calls from ConductResearch calls
+        think_tool_calls = [
+            tool_call for tool_call in most_recent_message.tool_calls 
+            if tool_call["name"] == "think_tool"
+        ]
+
         conduct_research_calls = [
             tool_call for tool_call in most_recent_message.tool_calls 
             if tool_call["name"] == "ConductResearch"
         ]
 
-        # Launch parallel research agents
-        coros = [
-            researcher_agent.ainvoke({
-                "researcher_messages": [
-                    HumanMessage(content=tool_call["args"]["research_topic"])
-                ],
-                "research_topic": tool_call["args"]["research_topic"]
-            }) 
-            for tool_call in conduct_research_calls
-        ]
+        # Handle think_tool calls (synchronous)
+        for tool_call in think_tool_calls:
+            observation = think_tool.invoke(tool_call["args"])
+            tool_messages.append(
+                ToolMessage(
+                    content=observation,
+                    name=tool_call["name"],
+                    tool_call_id=tool_call["id"]
+                )
+            )
 
-        # Wait for all research to complete
-        tool_results = await asyncio.gather(*coros)
+        # Handle ConductResearch calls (asynchronous)
+        if conduct_research_calls:
+            # Launch parallel research agents
+            coros = [
+                researcher_agent.ainvoke({
+                    "researcher_messages": [
+                        HumanMessage(content=tool_call["args"]["research_topic"])
+                    ],
+                    "research_topic": tool_call["args"]["research_topic"]
+                }) 
+                for tool_call in conduct_research_calls
+            ]
 
-        # Format results as tool messages
-        tool_messages = [
-            ToolMessage(
-                content=result.get("compressed_research", "Error synthesizing research report"),
-                name=tool_call["name"],
-                tool_call_id=tool_call["id"]
-            ) for result, tool_call in zip(tool_results, conduct_research_calls)
-        ]
+            # Wait for all research to complete
+            tool_results = await asyncio.gather(*coros)
 
-        # Aggregate raw notes from all research
-        all_raw_notes = [
-            "\n".join(result.get("raw_notes", [])) 
-            for result in tool_results
-        ]
+            # Format research results as tool messages
+            research_tool_messages = [
+                ToolMessage(
+                    content=result.get("compressed_research", "Error synthesizing research report"),
+                    name=tool_call["name"],
+                    tool_call_id=tool_call["id"]
+                ) for result, tool_call in zip(tool_results, conduct_research_calls)
+            ]
+
+            tool_messages.extend(research_tool_messages)
+
+            # Aggregate raw notes from all research
+            all_raw_notes = [
+                "\n".join(result.get("raw_notes", [])) 
+                for result in tool_results
+            ]
 
         return Command(
             goto="supervisor",

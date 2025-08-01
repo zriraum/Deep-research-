@@ -12,6 +12,7 @@ Key features:
 - Filesystem operations for local document research
 - Secure directory access with permission checking
 - Research compression for efficient processing
+- Lazy MCP client initialization for LangGraph Platform compatibility
 """
 
 import os
@@ -55,8 +56,15 @@ mcp_config = {
     }
 }
 
-# Initialize MCP client
-client = MultiServerMCPClient(mcp_config)
+# Global client variable - will be initialized lazily
+_client = None
+
+def get_mcp_client():
+    """Get or initialize MCP client lazily to avoid issues with LangGraph Platform."""
+    global _client
+    if _client is None:
+        _client = MultiServerMCPClient(mcp_config)
+    return _client
 
 # Initialize models
 compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000)
@@ -75,6 +83,7 @@ async def llm_call(state: ResearcherState):
     Returns updated state with model response.
     """
     # Get available tools from MCP server
+    client = get_mcp_client()
     mcp_tools = await client.get_tools()
 
     # Use MCP tools for local document access
@@ -110,6 +119,7 @@ def tool_node(state: ResearcherState):
     async def execute_tools():
         """Execute all tool calls. MCP tools require async execution."""
         # Get fresh tool references from MCP server
+        client = get_mcp_client()
         mcp_tools = await client.get_tools()
         tools = mcp_tools + [think_tool]
         tools_by_name = {tool.name: tool for tool in tools}

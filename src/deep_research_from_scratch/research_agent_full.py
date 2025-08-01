@@ -54,7 +54,7 @@ async def final_report_generation(state: AgentState):
 
     return {
         "final_report": final_report.content, 
-        "messages": [final_report],
+        "messages": ["Here is the final report: " + final_report.content],
         **cleared_state
     }
 
