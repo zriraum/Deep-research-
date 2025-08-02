@@ -33,7 +33,28 @@ cd deep_research_from_scratch
 uv sync
 ```
 
-3. Run notebooks or code using uv:
+3. Create a `.env` file in the project root with your API keys:
+```bash
+# Create .env file
+touch .env
+```
+
+Add your API keys to the `.env` file:
+```env
+# Required for research agents with external search
+TAVILY_API_KEY=your_tavily_api_key_here
+
+# Required for model usage
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Optional: For evaluation and tracing
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=deep_research_from_scratch
+```
+
+4. Run notebooks or code using uv:
 ```bash
 # Run Jupyter notebooks directly
 uv run jupyter notebook

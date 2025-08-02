@@ -76,3 +76,28 @@ The system implements a three-phase deep research workflow:
 4. The generated code in `src/` will automatically reflect your changes
 
 This approach ensures that the interactive tutorials remain the authoritative source while automatically maintaining the corresponding Python package structure.
+
+## Code Quality and Formatting
+
+### Ruff Formatting Checks
+
+To maintain consistent code formatting across the generated source files, run ruff periodically:
+
+```bash
+# Check for formatting issues
+ruff check src/
+
+# Auto-fix formatting issues where possible
+ruff check src/ --fix
+
+# Check specific file
+ruff check src/deep_research_from_scratch/research_agent.py
+```
+
+**Important**: Since source files in `src/` are generated from notebooks, any formatting issues should be fixed in the notebook `%%writefile` cells, not directly in the source files. After fixing formatting in notebooks, regenerate the source files by running the notebook cells.
+
+**Common formatting fixes needed:**
+- **D212**: Ensure docstring summaries start on the same line as triple quotes
+- **I001**: Organize imports properly (standard library → third party → local imports)
+- **F401**: Remove unused imports
+- **D415**: Add periods to docstring summaries
