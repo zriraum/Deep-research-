@@ -1,6 +1,5 @@
 
-"""
-Research Agent with MCP Integration
+"""Research Agent with MCP Integration.
 
 This module implements a research agent that integrates with Model Context Protocol (MCP)
 servers to access tools and resources. The agent demonstrates how to use MCP filesystem
@@ -15,8 +14,9 @@ Key features:
 - Lazy MCP client initialization for LangGraph Platform compatibility
 """
 
-import os
 import asyncio
+import os
+
 from typing_extensions import Literal
 
 # Import nest_asyncio only when needed (in Jupyter environments)
@@ -31,13 +31,26 @@ try:
 except ImportError:
     pass  # nest_asyncio not available, proceed without it
 
-from langgraph.graph import StateGraph, START, END
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, filter_messages
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.chat_models import init_chat_model
-from deep_research_from_scratch.state_research import ResearcherState, ResearcherOutputState
-from deep_research_from_scratch.utils import think_tool, get_today_str
-from deep_research_from_scratch.prompts import research_agent_prompt_with_mcp, compress_research_system_prompt, compress_research_human_message
+from langchain_core.messages import (
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+    filter_messages,
+)
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.graph import END, START, StateGraph
+
+from deep_research_from_scratch.prompts import (
+    compress_research_human_message,
+    compress_research_system_prompt,
+    research_agent_prompt_with_mcp,
+)
+from deep_research_from_scratch.state_research import (
+    ResearcherOutputState,
+    ResearcherState,
+)
+from deep_research_from_scratch.utils import get_today_str, think_tool
 
 # ===== CONFIGURATION =====
 
@@ -72,8 +85,7 @@ compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000)
 # ===== AGENT NODES =====
 
 async def llm_call(state: ResearcherState):
-    """
-    LLM decision node with MCP tool integration.
+    """Analyze current state and decide on tool usage with MCP integration.
 
     This node:
     1. Retrieves available tools from MCP server
@@ -103,8 +115,7 @@ async def llm_call(state: ResearcherState):
     }
 
 def tool_node(state: ResearcherState):
-    """
-    Tool execution node for MCP tools.
+    """Execute tool calls using MCP tools.
 
     This node:
     1. Retrieves current tool calls from the last message
@@ -167,8 +178,7 @@ def tool_node(state: ResearcherState):
     return {"researcher_messages": messages}
 
 def compress_research(state: ResearcherState) -> dict:
-    """
-    Compresses research findings into a concise summary.
+    """Compress research findings into a concise summary.
 
     Takes all the research messages and tool outputs and creates
     a compressed summary suitable for further processing or reporting.
@@ -197,8 +207,7 @@ def compress_research(state: ResearcherState) -> dict:
 # ===== ROUTING LOGIC =====
 
 def should_continue(state: ResearcherState) -> Literal["tool_node", "compress_research"]:
-    """
-    Conditional routing function.
+    """Determine whether to continue with tool execution or compress research.
 
     Determines whether to continue with tool execution or compress research
     based on whether the LLM made tool calls.

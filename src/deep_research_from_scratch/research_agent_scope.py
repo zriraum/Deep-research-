@@ -1,6 +1,5 @@
 
-"""
-User Clarification and Research Brief Generation
+"""User Clarification and Research Brief Generation
 
 This module implements the scoping phase of the research workflow, where we:
 1. Assess if the user's request needs clarification
@@ -14,12 +13,20 @@ from datetime import datetime
 from typing import Literal
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, AIMessage, get_buffer_string
-from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import AIMessage, HumanMessage, get_buffer_string
+from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from deep_research_from_scratch.prompts import clarify_with_user_instructions, transform_messages_into_research_topic_prompt
-from deep_research_from_scratch.state_scope import AgentState, ClarifyWithUser, ResearchQuestion, AgentInputState
+from deep_research_from_scratch.prompts import (
+    clarify_with_user_instructions,
+    transform_messages_into_research_topic_prompt,
+)
+from deep_research_from_scratch.state_scope import (
+    AgentInputState,
+    AgentState,
+    ClarifyWithUser,
+    ResearchQuestion,
+)
 
 # ===== UTILITY FUNCTIONS =====
 
@@ -35,8 +42,7 @@ model = init_chat_model(model="openai:gpt-4.1", temperature=0.0)
 # ===== WORKFLOW NODES =====
 
 def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brief", "__end__"]]:
-    """
-    Clarification decision node.
+    """Clarification decision node.
 
     Determines if the user's request contains sufficient information to proceed
     with research or if additional clarification is needed.
@@ -68,8 +74,7 @@ def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brie
         )
 
 def write_research_brief(state: AgentState):
-    """
-    Research brief generation node.
+    """Research brief generation node.
 
     Transforms the conversation history into a comprehensive research brief
     that will guide the subsequent research phase.

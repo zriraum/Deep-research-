@@ -1,6 +1,5 @@
 
-"""
-State Definitions for Multi-Agent Research Supervisor
+"""State Definitions for Multi-Agent Research Supervisor
 
 This module defines the state objects and tools used for the multi-agent
 research supervisor workflow, including coordination state and research tools.
@@ -15,8 +14,7 @@ from pydantic import BaseModel, Field
 
 
 def override_reducer(current_value, new_value):
-    """
-    Reducer function that allows complete override of list values.
+    """Reducer function that allows complete override of list values.
 
     If new_value is a dict with type "override", replaces the current value entirely.
     Otherwise, uses the default operator.add behavior to append values.
@@ -35,8 +33,7 @@ def override_reducer(current_value, new_value):
 
 
 class SupervisorState(TypedDict):
-    """
-    State for the multi-agent research supervisor.
+    """State for the multi-agent research supervisor.
 
     Manages coordination between supervisor and research agents, tracking
     research progress and accumulating findings from multiple sub-agents.

@@ -1,13 +1,12 @@
 
-"""
-State Definitions and Pydantic Schemas for Research Scoping
+"""State Definitions and Pydantic Schemas for Research Scoping
 
 This defines the state objects and structured schemas used for
 the research agent scoping workflow, including researcher state management and output schemas.
 """
 
 import operator
-from typing import Optional, Annotated, List
+from typing import Annotated, List
 
 from langchain_core.messages import MessageLikeRepresentation
 from langgraph.graph import MessagesState
@@ -26,8 +25,7 @@ class AgentInputState(MessagesState):
     pass
 
 class AgentState(MessagesState):
-    """
-    Main state for the full multi-agent research system.
+    """Main state for the full multi-agent research system.
 
     Extends MessagesState with additional fields for research coordination.
     Note: Some fields are duplicated across different state classes for proper
@@ -35,7 +33,7 @@ class AgentState(MessagesState):
     """
 
     # Research brief generated from user conversation history
-    research_brief: Optional[str]
+    research_brief: str | None
     # Messages exchanged with the supervisor agent for coordination
     supervisor_messages: Annotated[list[MessageLikeRepresentation], operator.add]
     # Raw unprocessed research notes collected during the research phase

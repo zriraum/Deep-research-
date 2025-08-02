@@ -1,21 +1,30 @@
 
-"""
-Research Agent Implementation
+"""Research Agent Implementation.
 
 This module implements a research agent that can perform iterative web searches
 and synthesis to answer complex research questions.
 """
 
-from pydantic import BaseModel, Field
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import (
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+    filter_messages,
+)
+from langgraph.graph import END, START, StateGraph
 from typing_extensions import Literal
 
-from langgraph.graph import StateGraph, START, END
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, filter_messages
-from langchain.chat_models import init_chat_model
-
-from deep_research_from_scratch.state_research import ResearcherState, ResearcherOutputState
-from deep_research_from_scratch.utils import tavily_search, get_today_str, think_tool
-from deep_research_from_scratch.prompts import research_agent_prompt, compress_research_system_prompt, compress_research_human_message
+from deep_research_from_scratch.prompts import (
+    compress_research_human_message,
+    compress_research_system_prompt,
+    research_agent_prompt,
+)
+from deep_research_from_scratch.state_research import (
+    ResearcherOutputState,
+    ResearcherState,
+)
+from deep_research_from_scratch.utils import get_today_str, tavily_search, think_tool
 
 # ===== CONFIGURATION =====
 
@@ -32,8 +41,7 @@ compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000) # mod
 # ===== AGENT NODES =====
 
 def llm_call(state: ResearcherState):
-    """
-    LLM decision node.
+    """Analyze current state and decide on next actions.
 
     The model analyzes the current conversation state and decides whether to:
     1. Call search tools to gather more information
@@ -50,8 +58,7 @@ def llm_call(state: ResearcherState):
     }
 
 def tool_node(state: ResearcherState):
-    """
-    Tool execution node.
+    """Execute all tool calls from the previous LLM response.
 
     Executes all tool calls from the previous LLM responses.
     Returns updated state with tool execution results.
@@ -76,8 +83,7 @@ def tool_node(state: ResearcherState):
     return {"researcher_messages": tool_outputs}
 
 def compress_research(state: ResearcherState) -> dict:
-    """
-    Compresses research findings into a concise summary.
+    """Compress research findings into a concise summary.
 
     Takes all the research messages and tool outputs and creates
     a compressed summary suitable for the supervisor's decision-making.
@@ -103,8 +109,7 @@ def compress_research(state: ResearcherState) -> dict:
 # ===== ROUTING LOGIC =====
 
 def should_continue(state: ResearcherState) -> Literal["tool_node", "compress_research"]:
-    """
-    Conditional routing function.
+    """Determine whether to continue research or provide final answer.
 
     Determines whether the agent should continue the research loop or provide
     a final answer based on whether the LLM made tool calls.

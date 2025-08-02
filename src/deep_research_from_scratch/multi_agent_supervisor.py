@@ -1,6 +1,5 @@
 
-"""
-Multi-agent supervisor for coordinating research across multiple specialized agents.
+"""Multi-agent supervisor for coordinating research across multiple specialized agents.
 
 This module implements a supervisor pattern where:
 1. A supervisor agent coordinates research activities and delegates tasks
@@ -12,28 +11,28 @@ maintaining isolated context windows for each research topic.
 """
 
 import asyncio
-from typing_extensions import Literal
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import (
-    HumanMessage, 
-    MessageLikeRepresentation, 
-    SystemMessage, 
+    HumanMessage,
+    MessageLikeRepresentation,
+    SystemMessage,
     ToolMessage,
-    filter_messages
+    filter_messages,
 )
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
+from typing_extensions import Literal
 
 from deep_research_from_scratch.prompts import lead_researcher_prompt
 from deep_research_from_scratch.research_agent import researcher_agent
 from deep_research_from_scratch.state_multi_agent_supervisor import (
-    SupervisorState, 
-    ConductResearch, 
-    ResearchComplete
+    ConductResearch,
+    ResearchComplete,
+    SupervisorState,
 )
-from deep_research_from_scratch.utils import think_tool
-from deep_research_from_scratch.utils import get_today_str
+from deep_research_from_scratch.utils import get_today_str, think_tool
+
 
 def get_notes_from_tool_calls(messages: list[MessageLikeRepresentation]) -> list[str]:
     """Extract notes from tool call messages."""
@@ -72,8 +71,7 @@ max_concurrent_researchers = 3
 # ===== SUPERVISOR NODES =====
 
 async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tools"]]:
-    """
-    Supervisor agent that coordinates research activities.
+    """Coordinate research activities.
 
     Analyzes the research brief and current progress to decide:
     - What research topics need investigation
@@ -108,8 +106,7 @@ async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tool
 
 
 async def supervisor_tools(state: SupervisorState) -> Command[Literal["supervisor", "__end__"]]:
-    """
-    Executes supervisor decisions - either conducts research or ends the process.
+    """Execute supervisor decisions - either conduct research or end the process.
 
     Handles:
     - Executing think_tool calls for strategic reflection

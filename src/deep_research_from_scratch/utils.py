@@ -1,6 +1,5 @@
 
-"""
-Research Utilities and Tools
+"""Research Utilities and Tools.
 
 This module provides search and content processing utilities for the research agent,
 including web search capabilities and content summarization tools.
@@ -9,14 +8,13 @@ including web search capabilities and content summarization tools.
 from datetime import datetime
 from typing import Annotated, List, Literal
 
-from langchain.chat_models import init_chat_model 
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool, InjectedToolArg
+from langchain_core.tools import InjectedToolArg, tool
 from tavily import TavilyClient
 
-from deep_research_from_scratch.state_research import Summary
 from deep_research_from_scratch.prompts import summarize_webpage_prompt
+from deep_research_from_scratch.state_research import Summary
 
 # ===== UTILITY FUNCTIONS =====
 
@@ -36,8 +34,7 @@ def tavily_search_multiple(
     topic: Literal["general", "news", "finance"] = "general", 
     include_raw_content: bool = True, 
 ) -> List[dict]:
-    """
-    Perform search using Tavily API for multiple queries.
+    """Perform search using Tavily API for multiple queries.
 
     Args:
         search_queries: List of search queries to execute
@@ -48,7 +45,6 @@ def tavily_search_multiple(
     Returns:
         List of search result dictionaries
     """
-
     tavily_client = TavilyClient()
 
     # Execute searches sequentially
@@ -65,8 +61,7 @@ def tavily_search_multiple(
     return search_docs
 
 def summarize_webpage_content(webpage_content: str) -> str:
-    """
-    Summarize webpage content using the configured summarization model.
+    """Summarize webpage content using the configured summarization model.
 
     Args:
         webpage_content: Raw webpage content to summarize
@@ -99,8 +94,7 @@ def summarize_webpage_content(webpage_content: str) -> str:
         return webpage_content[:1000] + "..." if len(webpage_content) > 1000 else webpage_content
 
 def deduplicate_search_results(search_results: List[dict]) -> dict:
-    """
-    Deduplicate search results by URL to avoid processing duplicate content.
+    """Deduplicate search results by URL to avoid processing duplicate content.
 
     Args:
         search_results: List of search result dictionaries
@@ -119,8 +113,7 @@ def deduplicate_search_results(search_results: List[dict]) -> dict:
     return unique_results
 
 def process_search_results(unique_results: dict) -> dict:
-    """
-    Process search results by summarizing content where available.
+    """Process search results by summarizing content where available.
 
     Args:
         unique_results: Dictionary of unique search results
@@ -146,8 +139,7 @@ def process_search_results(unique_results: dict) -> dict:
     return summarized_results
 
 def format_search_output(summarized_results: dict) -> str:
-    """
-    Format search results into a well-structured string output.
+    """Format search results into a well-structured string output.
 
     Args:
         summarized_results: Dictionary of processed search results
@@ -176,8 +168,7 @@ def tavily_search(
     max_results: Annotated[int, InjectedToolArg] = 3,
     topic: Annotated[Literal["general", "news", "finance"], InjectedToolArg] = "general",
 ) -> str:
-    """
-    Fetches results from Tavily search API with content summarization.
+    """Fetch results from Tavily search API with content summarization.
 
     Args:
         query: A single search query to execute
@@ -206,8 +197,7 @@ def tavily_search(
 
 @tool(description="Strategic reflection tool for research planning")
 def think_tool(reflection: str) -> str:
-    """
-    Tool for strategic reflection on research progress and decision-making.
+    """Tool for strategic reflection on research progress and decision-making.
 
     Use this tool after each search to analyze results and plan next steps systematically.
     This creates a deliberate pause in the research workflow for quality decision-making.
