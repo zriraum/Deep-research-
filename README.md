@@ -14,20 +14,33 @@ Deep research has broken out as one of the most popular agent applications. [Ope
 python3 --version
 ```
 - [uv](https://docs.astral.sh/uv/) package manager
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Update PATH to use the new uv version
+export PATH="/Users/$USER/.local/bin:$PATH"
+```
 
 ### Installation
 
-1. Clone the repository and activate a virtual environment:
+1. Clone the repository:
 ```bash
 git clone https://github.com/langchain-ai/deep_research_from_scratch
 cd deep_research_from_scratch
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-2. Install the package and dependencies:
+2. Install the package and dependencies (this automatically creates and manages the virtual environment):
 ```bash
-uv pip install -e .
+uv sync
+```
+
+3. Run notebooks or code using uv:
+```bash
+# Run Jupyter notebooks directly
+uv run jupyter notebook
+
+# Or activate the virtual environment if preferred
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+jupyter notebook
 ```
 
 ## Background 
