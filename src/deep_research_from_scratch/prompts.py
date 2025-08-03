@@ -55,17 +55,25 @@ Guidelines:
 - Include all known user preferences and explicitly list key attributes or dimensions to consider.
 - It is important that all details from the user are included in the instructions.
 
-2. Fill in Unstated But Necessary Dimensions as Open-Ended
-- If certain attributes are essential for a meaningful output but the user has not provided them, explicitly state that they are open-ended or default to no specific constraint.
+2. Handle Unstated Dimensions Carefully
+- When research quality requires considering additional dimensions that the user hasn't specified, acknowledge them as open considerations rather than assumed preferences.
+- Example: Instead of assuming "budget-friendly options," say "consider all price ranges unless cost constraints are specified."
+- Only mention dimensions that are genuinely necessary for comprehensive research in that domain.
 
 3. Avoid Unwarranted Assumptions
-- If the user has not provided a particular detail, do not invent one.
-- Instead, state the lack of specification and guide the researcher to treat it as flexible or accept all possible options.
+- Never invent specific user preferences, constraints, or requirements that weren't stated.
+- If the user hasn't provided a particular detail, explicitly note this lack of specification.
+- Guide the researcher to treat unspecified aspects as flexible rather than making assumptions.
 
-4. Use the First Person
+4. Distinguish Between Research Scope and User Preferences
+- Research scope: What topics/dimensions should be investigated (can be broader than user's explicit mentions)
+- User preferences: Specific constraints, requirements, or preferences (must only include what user stated)
+- Example: "Research coffee quality factors (including bean sourcing, roasting methods, brewing techniques) for San Francisco coffee shops, with primary focus on taste as specified by the user."
+
+5. Use the First Person
 - Phrase the request from the perspective of the user.
 
-5. Sources
+6. Sources
 - If specific sources should be prioritized, specify them in the research question.
 - For product and travel research, prefer linking directly to official or primary websites (e.g., official brand sites, manufacturer pages, or reputable e-commerce platforms like Amazon for user reviews) rather than aggregator sites or SEO-heavy blogs.
 - For academic or scientific queries, prefer linking directly to the original paper or official journal publication rather than survey papers or secondary summaries.
@@ -430,63 +438,69 @@ Format the report in clear markdown with proper structure and include source ref
 </Citation Rules>
 """
 
-# Improved LLM-as-judge prompt using best practices
 BRIEF_CRITERIA_PROMPT = """
-## Brief Criteria Evaluator
-
 <role>
-You are an expert research brief evaluator with years of experience assessing whether research briefs comprehensively capture user requirements.
+You are an expert research brief evaluator specializing in assessing whether generated research briefs accurately capture user-specified criteria without loss of important details.
 </role>
 
 <task>
-Evaluate whether a research brief captures each specified success criteria. Make binary pass/fail judgments for each criterion.
+Determine if the research brief adequately captures the specific success criterion provided. Return a binary assessment with detailed reasoning.
 </task>
 
 <evaluation_context>
-Research briefs should transform user conversations into actionable research guidance that preserves all essential user requirements without adding unspecified assumptions.
+Research briefs are critical for guiding downstream research agents. Missing or inadequately captured criteria can lead to incomplete research that fails to address user needs. Accurate evaluation ensures research quality and user satisfaction.
 </evaluation_context>
+
+<criterion_to_evaluate>
+{criterion}
+</criterion_to_evaluate>
 
 <research_brief>
 {research_brief}
 </research_brief>
 
-<success_criteria>
-{success_criteria}
-</success_criteria>
-
 <evaluation_guidelines>
-For each criterion, determine if it is CAPTURED (pass) or MISSING (fail):
+CAPTURED (criterion is adequately represented) if:
+- The research brief explicitly mentions or directly addresses the criterion
+- The brief contains equivalent language or concepts that clearly cover the criterion
+- The criterion's intent is preserved even if worded differently
+- All key aspects of the criterion are represented in the brief
 
-CAPTURED means:
-- The criterion is explicitly mentioned or clearly implied in the research brief
-- The brief provides sufficient detail to guide research on this aspect
-- The requirement is preserved in actionable form
-
-MISSING means:
+NOT CAPTURED (criterion is missing or inadequately addressed) if:
 - The criterion is completely absent from the research brief
-- The brief is too vague to address this specific requirement
-- The requirement was lost during brief generation
+- The brief only partially addresses the criterion, missing important aspects
+- The criterion is implied but not clearly stated or actionable for researchers
+- The brief contradicts or conflicts with the criterion
 
 <evaluation_examples>
 Example 1 - CAPTURED:
-Criterion: "Budget under $5000"
-Brief: "...identify options within the specified budget of under $5000..."
-Judgment: CAPTURED - explicitly preserved
+Criterion: "Current age is 25"
+Brief: "...investment advice for a 25-year-old investor..."
+Judgment: CAPTURED - age is explicitly mentioned
 
-Example 2 - MISSING:  
-Criterion: "Must have parking"
-Brief: "...find apartments with good amenities..."
-Judgment: MISSING - parking requirement not specified
+Example 2 - NOT CAPTURED:
+Criterion: "Monthly rent below 7k"
+Brief: "...find apartments in Manhattan with good amenities..."
+Judgment: NOT CAPTURED - budget constraint is completely missing
 
 Example 3 - CAPTURED:
-Criterion: "Prefer downtown location" 
-Brief: "...focus on downtown areas as preferred by the user..."
-Judgment: CAPTURED - preference clearly maintained
+Criterion: "High risk tolerance"
+Brief: "...willing to accept significant market volatility for higher returns..."
+Judgment: CAPTURED - equivalent concept expressed differently
+
+Example 4 - NOT CAPTURED:
+Criterion: "Doorman building required"
+Brief: "...find apartments with modern amenities..."
+Judgment: NOT CAPTURED - specific doorman requirement not mentioned
 </evaluation_examples>
 </evaluation_guidelines>
 
 <output_instructions>
-Evaluate each criterion systematically. Be strict but fair - if there's reasonable evidence the criterion is addressed, mark as CAPTURED.
+1. Carefully examine the research brief for evidence of the specific criterion
+2. Look for both explicit mentions and equivalent concepts
+3. Provide specific quotes or references from the brief as evidence
+4. Be systematic - when in doubt about partial coverage, lean toward NOT CAPTURED for quality assurance
+5. Focus on whether a researcher could act on this criterion based on the brief alone
 </output_instructions>"""
 
 BRIEF_HALLUCINATION_PROMPT = """
