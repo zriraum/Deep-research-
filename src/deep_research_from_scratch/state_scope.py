@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 
 # ===== STATE DEFINITIONS =====
 
-# TODO: Do we need a pass here
 class AgentInputState(MessagesState):
     """Input state for the full agent - only contains messages from user input."""
     pass
