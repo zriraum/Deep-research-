@@ -5,26 +5,16 @@ This module implements a research agent that can perform iterative web searches
 and synthesis to answer complex research questions.
 """
 
-from langchain.chat_models import init_chat_model
-from langchain_core.messages import (
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-    filter_messages,
-)
-from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel, Field
 from typing_extensions import Literal
 
-from deep_research_from_scratch.prompts import (
-    compress_research_human_message,
-    compress_research_system_prompt,
-    research_agent_prompt,
-)
-from deep_research_from_scratch.state_research import (
-    ResearcherOutputState,
-    ResearcherState,
-)
-from deep_research_from_scratch.utils import get_today_str, tavily_search, think_tool
+from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, filter_messages
+from langchain.chat_models import init_chat_model
+
+from deep_research_from_scratch.state_research import ResearcherState, ResearcherOutputState
+from deep_research_from_scratch.utils import tavily_search, get_today_str, think_tool
+from deep_research_from_scratch.prompts import research_agent_prompt, compress_research_system_prompt, compress_research_human_message
 
 # ===== CONFIGURATION =====
 

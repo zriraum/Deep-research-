@@ -14,47 +14,34 @@ Key features:
 - Lazy MCP client initialization for LangGraph Platform compatibility
 """
 
-import asyncio
 import os
+from pathlib import Path
 
 from typing_extensions import Literal
 
-# Import nest_asyncio only when needed (in Jupyter environments)
-try:
-    import nest_asyncio
-    # Only apply if running in Jupyter/IPython environment
-    try:
-        get_ipython()
-        nest_asyncio.apply()
-    except NameError:
-        pass  # Not in Jupyter, no need for nest_asyncio
-except ImportError:
-    pass  # nest_asyncio not available, proceed without it
-
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import (
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-    filter_messages,
-)
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, filter_messages
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import StateGraph, START, END
 
-from deep_research_from_scratch.prompts import (
-    compress_research_human_message,
-    compress_research_system_prompt,
-    research_agent_prompt_with_mcp,
-)
-from deep_research_from_scratch.state_research import (
-    ResearcherOutputState,
-    ResearcherState,
-)
+from deep_research_from_scratch.prompts import research_agent_prompt_with_mcp, compress_research_system_prompt, compress_research_human_message
+from deep_research_from_scratch.state_research import ResearcherState, ResearcherOutputState
 from deep_research_from_scratch.utils import get_today_str, think_tool
 
 # ===== CONFIGURATION =====
 
-# Nested event loops are automatically handled above if in Jupyter environment
+def get_current_dir() -> Path:
+    """Get the current directory of the module.
+
+    This function is compatible with Jupyter notebooks and regular Python scripts.
+
+    Returns:
+        Path object representing the current directory
+    """
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:  # __file__ is not defined
+        return Path.cwd()
 
 # MCP server configuration for filesystem access
 mcp_config = {
@@ -63,7 +50,7 @@ mcp_config = {
         "args": [
             "-y",  # Auto-install if needed
             "@modelcontextprotocol/server-filesystem",
-            os.path.abspath("./files/")  # Path to research documents
+            str(get_current_dir() / "files")  # Path to research documents
         ],
         "transport": "stdio"  # Communication via stdin/stdout
     }
@@ -81,6 +68,7 @@ def get_mcp_client():
 
 # Initialize models
 compress_model = init_chat_model(model="openai:gpt-4.1", max_tokens=32000)
+model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
 
 # ===== AGENT NODES =====
 
@@ -102,7 +90,6 @@ async def llm_call(state: ResearcherState):
     tools = mcp_tools + [think_tool]
 
     # Initialize model with tool binding
-    model = init_chat_model(model="anthropic:claude-sonnet-4-20250514")
     model_with_tools = model.bind_tools(tools)
 
     # Process user input with system prompt
@@ -114,7 +101,7 @@ async def llm_call(state: ResearcherState):
         ]
     }
 
-def tool_node(state: ResearcherState):
+async def tool_node(state: ResearcherState):
     """Execute tool calls using MCP tools.
 
     This node:
@@ -152,28 +139,14 @@ def tool_node(state: ResearcherState):
             ToolMessage(
                 content=observation,
                 name=tool_call["name"],
-                tool_call_id=tool_call["id"]
-            ) for observation, tool_call in zip(observations, tool_calls)
+                tool_call_id=tool_call["id"],
+            )
+            for observation, tool_call in zip(observations, tool_calls)
         ]
 
         return tool_outputs
 
-    # Handle async execution in different contexts
-    try:
-        # Try to get current event loop
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # In Jupyter or other async context, create task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, execute_tools())
-                messages = future.result()
-        else:
-            # Standard event loop, can use asyncio.run
-            messages = asyncio.run(execute_tools())
-    except RuntimeError:
-        # No event loop, create new one
-        messages = asyncio.run(execute_tools())
+    messages = await execute_tools()
 
     return {"researcher_messages": messages}
 

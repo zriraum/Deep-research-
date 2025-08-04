@@ -12,30 +12,44 @@ maintaining isolated context windows for each research topic.
 
 import asyncio
 
+from typing_extensions import Literal
+
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import (
-    HumanMessage,
-    MessageLikeRepresentation,
-    SystemMessage,
+    HumanMessage, 
+    BaseMessage, 
+    SystemMessage, 
     ToolMessage,
-    filter_messages,
+    filter_messages
 )
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
-from typing_extensions import Literal
 
 from deep_research_from_scratch.prompts import lead_researcher_prompt
 from deep_research_from_scratch.research_agent import researcher_agent
 from deep_research_from_scratch.state_multi_agent_supervisor import (
-    ConductResearch,
-    ResearchComplete,
-    SupervisorState,
+    SupervisorState, 
+    ConductResearch, 
+    ResearchComplete
 )
 from deep_research_from_scratch.utils import get_today_str, think_tool
 
 
-def get_notes_from_tool_calls(messages: list[MessageLikeRepresentation]) -> list[str]:
-    """Extract notes from tool call messages."""
+def get_notes_from_tool_calls(messages: list[BaseMessage]) -> list[str]:
+    """Extract research notes from ToolMessage objects in supervisor message history.
+
+    This function retrieves the compressed research findings that sub-agents
+    return as ToolMessage content. When the supervisor delegates research to
+    sub-agents via ConductResearch tool calls, each sub-agent returns its
+    compressed findings as the content of a ToolMessage. This function
+    extracts all such ToolMessage content to compile the final research notes.
+
+    Args:
+        messages: List of messages from supervisor's conversation history
+
+    Returns:
+        List of research note strings extracted from ToolMessage objects
+    """
     return [tool_msg.content for tool_msg in filter_messages(messages, include_types="tool")]
 
 
@@ -182,9 +196,13 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
             ]
 
             # Wait for all research to complete
+            # TODO: Now examine whether we can do this w/o asyncio.gather?
             tool_results = await asyncio.gather(*coros)
 
             # Format research results as tool messages
+            # Each sub-agent returns compressed research findings in result["compressed_research"]
+            # We write this compressed research as the content of a ToolMessage, which allows
+            # the supervisor to later retrieve these findings via get_notes_from_tool_calls()
             research_tool_messages = [
                 ToolMessage(
                     content=result.get("compressed_research", "Error synthesizing research report"),

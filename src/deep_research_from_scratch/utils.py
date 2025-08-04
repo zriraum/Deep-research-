@@ -6,15 +6,16 @@ including web search capabilities and content summarization tools.
 """
 
 from datetime import datetime
-from typing import Annotated, List, Literal
+from typing_extensions import Annotated, List, Literal
 
-from langchain.chat_models import init_chat_model
+from langchain.chat_models import init_chat_model 
 from langchain_core.messages import HumanMessage
-from langchain_core.tools import InjectedToolArg, tool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool, InjectedToolArg
 from tavily import TavilyClient
 
-from deep_research_from_scratch.prompts import summarize_webpage_prompt
 from deep_research_from_scratch.state_research import Summary
+from deep_research_from_scratch.prompts import summarize_webpage_prompt
 
 # ===== UTILITY FUNCTIONS =====
 
@@ -45,6 +46,7 @@ def tavily_search_multiple(
     Returns:
         List of search result dictionaries
     """
+
     tavily_client = TavilyClient()
 
     # Execute searches sequentially
@@ -100,7 +102,7 @@ def deduplicate_search_results(search_results: List[dict]) -> dict:
         search_results: List of search result dictionaries
 
     Returns:
-        Dictionary mapping URLs to unique results with query metadata
+        Dictionary mapping URLs to unique results
     """
     unique_results = {}
 
@@ -108,7 +110,8 @@ def deduplicate_search_results(search_results: List[dict]) -> dict:
         for result in response['results']:
             url = result['url']
             if url not in unique_results:
-                unique_results[url] = {**result, "query": response['query']}
+                # Removed query field as it's not used downstream and we only pass one query anyway
+                unique_results[url] = result
 
     return unique_results
 
@@ -162,7 +165,7 @@ def format_search_output(summarized_results: dict) -> str:
 
 # ===== RESEARCH TOOLS =====
 
-@tool(description="Web search utility")
+@tool(parse_docstring=True)
 def tavily_search(
     query: str,
     max_results: Annotated[int, InjectedToolArg] = 3,
@@ -195,7 +198,7 @@ def tavily_search(
     # Format output for consumption
     return format_search_output(summarized_results)
 
-@tool(description="Strategic reflection tool for research planning")
+@tool(parse_docstring=True)
 def think_tool(reflection: str) -> str:
     """Tool for strategic reflection on research progress and decision-making.
 

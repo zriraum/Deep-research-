@@ -1,47 +1,43 @@
 
-"""State Definitions and Pydantic Schemas for Research Agent
+"""
+State Definitions and Pydantic Schemas for Research Agent
 
 This module defines the state objects and structured schemas used for
 the research agent workflow, including researcher state management and output schemas.
 """
 
 import operator
-from typing import Annotated, List
-
-from langchain_core.messages import MessageLikeRepresentation
+from typing_extensions import TypedDict, Annotated, List, Sequence
 from pydantic import BaseModel, Field
-from typing_extensions import TypedDict
-
-# ===== REDUCER FUNCTIONS =====
-
-def override_reducer(existing: List, new: List) -> List:
-    """Override reducer that replaces existing list with new list."""
-    return new if new else existing
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 # ===== STATE DEFINITIONS =====
 
 class ResearcherState(TypedDict):
-    """State for the research agent containing message history and research metadata.
+    """
+    State for the research agent containing message history and research metadata.
 
     This state tracks the researcher's conversation, iteration count for limiting
     tool calls, the research topic being investigated, compressed findings,
     and raw research notes for detailed analysis.
     """
-    researcher_messages: Annotated[List[MessageLikeRepresentation], operator.add]
+    researcher_messages: Annotated[Sequence[BaseMessage], add_messages]
     tool_call_iterations: int
     research_topic: str
     compressed_research: str
-    raw_notes: Annotated[List[str], override_reducer]
+    raw_notes: Annotated[List[str], operator.add]
 
-class ResearcherOutputState(BaseModel):
-    """Output state for the research agent containing final research results.
+class ResearcherOutputState(TypedDict):
+    """
+    Output state for the research agent containing final research results.
 
     This represents the final output of the research process with compressed
     research findings and all raw notes from the research process.
     """
     compressed_research: str
-    raw_notes: Annotated[List[str], override_reducer]
-    researcher_messages: Annotated[List[MessageLikeRepresentation], operator.add]
+    raw_notes: Annotated[List[str], operator.add]
+    researcher_messages: Annotated[Sequence[BaseMessage], add_messages]
 
 # ===== STRUCTURED OUTPUT SCHEMAS =====
 

@@ -104,17 +104,17 @@ This repo contains 5 tutorial notebooks that build a deep research system from s
 
 **Key Concepts**:
 - **Agent Architecture**: LLM decision node + tool execution node pattern
-- **Async Operations**: Concurrent tool execution for better performance
+- **Sequential Tool Execution**: Reliable synchronous tool execution
 - **Search Integration**: Tavily search with content summarization
 - **Tool Execution**: ReAct-style agent loop with tool calling
 
 **Implementation Highlights**:
-- Async tool execution using `asyncio.gather()` for parallel searches
+- Synchronous tool execution for reliability and simplicity
 - Content summarization to compress search results
 - Iterative research loop with conditional routing
 - Rich prompt engineering for comprehensive research
 
-**What You'll Learn**: Agent patterns, async programming, tool integration, search optimization
+**What You'll Learn**: Agent patterns, tool integration, search optimization, research workflow design
 
 ---
 
@@ -131,7 +131,7 @@ This repo contains 5 tutorial notebooks that build a deep research system from s
 - `MultiServerMCPClient` for managing MCP servers
 - Configuration-driven server setup (filesystem example)
 - Rich formatting for tool output display
-- Async-only tool execution due to MCP protocol requirements
+- Async tool execution required by MCP protocol (no nested event loops needed)
 
 **What You'll Learn**: MCP integration, client-server architecture, protocol-based tool access
 
@@ -142,17 +142,18 @@ This repo contains 5 tutorial notebooks that build a deep research system from s
 
 **Key Concepts**:
 - **Supervisor Pattern**: Coordination agent + worker agents
-- **Parallel Research**: Concurrent research agents for independent topics
+- **Parallel Research**: Concurrent research agents for independent topics using parallel tool calls
 - **Research Delegation**: Structured tools for task assignment
 - **Context Isolation**: Separate context windows for different research topics
 
 **Implementation Highlights**:
 - Two-node supervisor pattern (`supervisor` + `supervisor_tools`)
-- Parallel research execution using `asyncio.gather()`
+- Parallel research execution using `asyncio.gather()` for true concurrency
 - Structured tools (`ConductResearch`, `ResearchComplete`) for delegation
-- Configurable concurrency limits and iteration controls
+- Enhanced prompts with parallel research instructions
+- Comprehensive documentation of research aggregation patterns
 
-**What You'll Learn**: Multi-agent patterns, parallel processing, research coordination
+**What You'll Learn**: Multi-agent patterns, parallel processing, research coordination, async orchestration
 
 ---
 
@@ -178,10 +179,11 @@ This repo contains 5 tutorial notebooks that build a deep research system from s
 ### 🎯 Key Learning Outcomes
 
 - **Structured Output**: Using Pydantic schemas for reliable AI decision making
-- **Async Programming**: Concurrent operations for better performance
+- **Async Orchestration**: Strategic use of async patterns for parallel coordination vs synchronous simplicity
 - **Agent Patterns**: ReAct loops, supervisor patterns, multi-agent coordination
 - **Search Integration**: External APIs, MCP servers, content processing
 - **Workflow Design**: LangGraph patterns for complex multi-step processes
 - **State Management**: Complex state flows across subgraphs and nodes
+- **Protocol Integration**: MCP servers and tool ecosystems
 
 Each notebook builds on the previous concepts, culminating in a production-ready deep research system that can handle complex, multi-faceted research queries with intelligent scoping and coordinated execution. 
