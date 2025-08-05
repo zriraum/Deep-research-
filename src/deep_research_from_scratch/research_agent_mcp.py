@@ -15,7 +15,6 @@ Key features:
 """
 
 import os
-from pathlib import Path
 
 from typing_extensions import Literal
 
@@ -26,22 +25,9 @@ from langgraph.graph import StateGraph, START, END
 
 from deep_research_from_scratch.prompts import research_agent_prompt_with_mcp, compress_research_system_prompt, compress_research_human_message
 from deep_research_from_scratch.state_research import ResearcherState, ResearcherOutputState
-from deep_research_from_scratch.utils import get_today_str, think_tool
+from deep_research_from_scratch.utils import get_today_str, think_tool, get_current_dir
 
 # ===== CONFIGURATION =====
-
-def get_current_dir() -> Path:
-    """Get the current directory of the module.
-
-    This function is compatible with Jupyter notebooks and regular Python scripts.
-
-    Returns:
-        Path object representing the current directory
-    """
-    try:
-        return Path(__file__).resolve().parent
-    except NameError:  # __file__ is not defined
-        return Path.cwd()
 
 # MCP server configuration for filesystem access
 mcp_config = {

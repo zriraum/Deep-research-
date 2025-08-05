@@ -5,6 +5,7 @@ This module provides search and content processing utilities for the research ag
 including web search capabilities and content summarization tools.
 """
 
+from pathlib import Path
 from datetime import datetime
 from typing_extensions import Annotated, List, Literal
 
@@ -23,9 +24,23 @@ def get_today_str() -> str:
     """Get current date in a human-readable format."""
     return datetime.now().strftime("%a %b %-d, %Y")
 
+def get_current_dir() -> Path:
+    """Get the current directory of the module.
+
+    This function is compatible with Jupyter notebooks and regular Python scripts.
+
+    Returns:
+        Path object representing the current directory
+    """
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:  # __file__ is not defined
+        return Path.cwd()
+
 # ===== CONFIGURATION =====
 
 summarization_model = init_chat_model(model="openai:gpt-4.1-mini")
+tavily_client = TavilyClient()
 
 # ===== SEARCH FUNCTIONS =====
 
@@ -47,9 +62,7 @@ def tavily_search_multiple(
         List of search result dictionaries
     """
 
-    tavily_client = TavilyClient()
-
-    # Execute searches sequentially
+    # Execute searches sequentially. Note: yon can use AsyncTavilyClient to parallelize this step.
     search_docs = []
     for query in search_queries:
         result = tavily_client.search(
@@ -110,7 +123,6 @@ def deduplicate_search_results(search_results: List[dict]) -> dict:
         for result in response['results']:
             url = result['url']
             if url not in unique_results:
-                # Removed query field as it's not used downstream and we only pass one query anyway
                 unique_results[url] = result
 
     return unique_results

@@ -51,7 +51,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # Optional: For evaluation and tracing
 LANGSMITH_API_KEY=your_langsmith_api_key_here
 LANGSMITH_TRACING=true
-LANGCHAIN_PROJECT=deep_research_from_scratch
+LANGSMITH_PROJECT=deep_research_from_scratch
 ```
 
 4. Run notebooks or code using uv:
