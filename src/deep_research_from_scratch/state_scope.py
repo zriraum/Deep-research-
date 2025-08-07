@@ -1,6 +1,5 @@
 
-"""
-State Definitions and Pydantic Schemas for Research Scoping
+"""State Definitions and Pydantic Schemas for Research Scoping.
 
 This defines the state objects and structured schemas used for
 the research agent scoping workflow, including researcher state management and output schemas.
@@ -43,6 +42,8 @@ class AgentState(MessagesState):
 # ===== STRUCTURED OUTPUT SCHEMAS =====
 
 class ClarifyWithUser(BaseModel):
+    """Schema for user clarification decision and questions."""
+
     need_clarification: bool = Field(
         description="Whether the user needs to be asked a clarifying question.",
     )
@@ -54,6 +55,8 @@ class ClarifyWithUser(BaseModel):
     )
 
 class ResearchQuestion(BaseModel):
+    """Schema for structured research brief generation."""
+
     research_brief: str = Field(
         description="A research question that will be used to guide the research.",
     )

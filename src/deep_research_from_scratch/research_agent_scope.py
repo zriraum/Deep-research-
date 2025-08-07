@@ -1,6 +1,5 @@
 
-"""
-User Clarification and Research Brief Generation
+"""User Clarification and Research Brief Generation.
 
 This module implements the scoping phase of the research workflow, where we:
 1. Assess if the user's request needs clarification
@@ -36,10 +35,7 @@ model = init_chat_model(model="openai:gpt-4.1", temperature=0.0)
 
 def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brief", "__end__"]]:
     """
-    Clarification decision node.
-
-    Determines if the user's request contains sufficient information to proceed
-    with research or if additional clarification is needed.
+    Determine if the user's request contains sufficient information to proceed with research.
 
     Uses structured output to make deterministic decisions and avoid hallucination.
     Routes to either research brief generation or ends with a clarification question.
@@ -69,10 +65,7 @@ def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brie
 
 def write_research_brief(state: AgentState):
     """
-    Research brief generation node.
-
-    Transforms the conversation history into a comprehensive research brief
-    that will guide the subsequent research phase.
+    Transform the conversation history into a comprehensive research brief.
 
     Uses structured output to ensure the brief follows the required format
     and contains all necessary details for effective research.

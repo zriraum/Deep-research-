@@ -1,3 +1,9 @@
+"""Prompt templates for the deep research system.
+
+This module contains all prompt templates used across the research workflow components,
+including user clarification, research brief generation, and report synthesis.
+"""
+
 clarify_with_user_instructions="""
 These are the messages that have been exchanged so far from the user asking for the report:
 <Messages>
@@ -267,7 +273,7 @@ Think like a research manager with limited time and resources. Follow these step
 **Task Delegation Budgets** (Prevent excessive delegation):
 - **Bias towards single agent** - Use single agent for simplicity unless the user request has clear opportunity for parallelization
 - **Stop when you can answer confidently** - Don't keep delegating research for perfection
-- **Limit tool calls** - Always stop after 3 tool calls to ConductResearch if you cannot find the right sources
+- **Limit tool calls** - Always stop after {max_researcher_iterations} tool calls to think_tool and ConductResearch if you cannot find the right sources
 </Hard Limits>
 
 <Show Your Thinking>

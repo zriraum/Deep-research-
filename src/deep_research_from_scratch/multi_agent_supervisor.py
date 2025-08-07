@@ -34,7 +34,6 @@ from deep_research_from_scratch.state_multi_agent_supervisor import (
 )
 from deep_research_from_scratch.utils import get_today_str, think_tool
 
-
 def get_notes_from_tool_calls(messages: list[BaseMessage]) -> list[str]:
     """Extract research notes from ToolMessage objects in supervisor message history.
 
@@ -51,7 +50,6 @@ def get_notes_from_tool_calls(messages: list[BaseMessage]) -> list[str]:
         List of research note strings extracted from ToolMessage objects
     """
     return [tool_msg.content for tool_msg in filter_messages(messages, include_types="tool")]
-
 
 # Ensure async compatibility for Jupyter environments
 try:
@@ -76,7 +74,7 @@ supervisor_model_with_tools = supervisor_model.bind_tools(supervisor_tools)
 # System constants
 # Maximum number of tool call iterations for individual researcher agents
 # This prevents infinite loops and controls research depth per topic
-max_researcher_iterations = 3
+max_researcher_iterations = 6 # Calls to think_tool + ConductResearch
 
 # Maximum number of concurrent research agents the supervisor can launch
 # This is passed to the lead_researcher_prompt to limit parallel research tasks
@@ -103,7 +101,8 @@ async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tool
     # Prepare system message with current date and constraints
     system_message = lead_researcher_prompt.format(
         date=get_today_str(), 
-        max_concurrent_research_units=max_concurrent_researchers
+        max_concurrent_research_units=max_concurrent_researchers,
+        max_researcher_iterations=max_researcher_iterations
     )
     messages = [SystemMessage(content=system_message)] + supervisor_messages
 
@@ -117,7 +116,6 @@ async def supervisor(state: SupervisorState) -> Command[Literal["supervisor_tool
             "research_iterations": state.get("research_iterations", 0) + 1
         }
     )
-
 
 async def supervisor_tools(state: SupervisorState) -> Command[Literal["supervisor", "__end__"]]:
     """Execute supervisor decisions - either conduct research or end the process.
@@ -155,6 +153,7 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
     if exceeded_iterations or no_tool_calls or research_complete:
         should_end = True
         next_step = END
+
     else:
         # Execute ALL tool calls before deciding next step
         try:
