@@ -8,6 +8,21 @@ Deep research has broken out as one of the most popular agent applications. [Ope
 
 ### Prerequisites
 
+- **Node.js and npx** (required for MCP server in notebook 3):
+```bash
+# Install Node.js (includes npx)
+# On macOS with Homebrew:
+brew install node
+
+# On Ubuntu/Debian:
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify installation:
+node --version
+npx --version
+```
+
 - Ensure you're using Python 3.11 or later.
 - This version is required for optimal compatibility with LangGraph.
 ```bash
